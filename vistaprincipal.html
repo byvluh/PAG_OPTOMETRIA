@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Citas UAL</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <img src="https://www.ual.mx/wp-content/uploads/2022/04/LOGO-UAL.png" alt="UAL" class="logo">
+    <h1>Universidad Autónoma de La Laguna</h1>
+  
+  </header>
+
+  <main>
+    <div class="container">
+      <div class="step-indicator">
+        <div class="step active">1</div>
+        <div class="step">2</div>
+        <div class="step">3</div>
+        <div class="step">4</div>
+        <div class="step">5</div>
+      </div>
+
+      <div class="progress-bar"><div class="progress"></div></div>
+
+      <!-- Paso 1 -->
+      <section class="step-view active">
+         <h2>Bienvenido - paso 1 de 4</h2>
+                <p>¿Eres un paciente nuevo o estas regresando para una visita de seguimiento?</p>
+        <div class="options">
+             <button class="option">Paciente nuevo</button>
+              <button class="option">Paciente habitual</button>
+          </div>
+        <div class="buttons">
+          <button id="next1">Siguiente</button>
+        </div>
+      </section>
+
+      <!-- Paso 2 -->
+      <section class="step-view">
+        <h2>Selecciona el tipo de servicio</h2>
+                <p>Eliga el tipo de servicio que necesita para su cuidado visual.</p>
+                <div class="options">
+                    <button class="option">Lentes de Armazón</button>
+                    <button class="option">Lentes de Contacto</button>
+                </div>
+        <div class="buttons">
+          <button class="back">Atrás</button>
+          <button id="next2">Siguiente</button>
+        </div>
+      </section>
+
+      <!-- Paso 3: Selección de fecha y hora -->
+      <section class="step-view">
+        <h2>Seleccionar Fecha y Hora</h2>
+        <p>Elije una fecha disponible para agendar tu cita</p>
+
+        <div class="calendar-container">
+          <div class="calendar-header">
+            <button id="prevMonth">&lt;</button>
+            <h3 id="monthYear"></h3>
+            <button id="nextMonth">&gt;</button>
+          </div>
+          <div class="calendar" id="calendar"></div>
+        </div>
+
+        <div class="time-container">
+          <h3>Horarios disponibles</h3>
+          <div id="timeSlots" class="time-slots"></div>
+        </div>
+
+        <div id="selectedSummary" class="summary-box">
+          <p>🗓️ Cita seleccionada: <span id="selectedText">Ninguna</span></p>
+        </div>
+
+        <div class="buttons">
+          <button class="back">Atrás</button>
+          <button id="next3">Siguiente</button>
+        </div>
+      </section>
+
+      <!-- Paso 4 -->
+      <section class="step-view">
+        
+         <div class="form-group">
+                    <input type="text" placeholder="Nombre completo">
+                    <input type="email" placeholder="Correo electrónico">
+                    <input type="tel" placeholder="Teléfono">
+                </div>
+        <div class="buttons">
+          <button class="back">Atrás</button>
+          <button id="next4">Siguiente</button>
+        </div>
+      </section>
+
+      <!-- Paso 5 -->
+      <!-- Paso 5 -->
+<section class="step-view">
+  <div class="confirmation-box">
+    <div class="circle-icon">✔</div>
+    <h2>Cita realizada</h2>
+    <p>La cita ha sido agendada con éxito</p>
+
+    <div class="details">
+      <div class="detail"><strong>Tipo de atención:</strong> <span id="confirmTipoAtencion">Presencial</span></div>
+      <div class="detail"><strong>Tipo de servicio:</strong> <span id="confirmTipoServicio">Seguimiento</span></div>
+      <div class="detail"><strong>Fecha:</strong> <span id="confirmFecha">Lunes, 10 de noviembre de 2025</span></div>
+      <div class="detail"><strong>Hora:</strong> <span id="confirmHora">10:30 hrs</span></div>
+      <div class="detail"><strong>Nombre del paciente:</strong> <span id="confirmNombre">---</span></div>
+    </div>
+
+    <p class="message">
+      Confirmación enviada.<br>
+      Se ha enviado un mensaje de confirmación a tu correo electrónico.<br>
+      Por favor, llegue 10 minutos antes de su cita.
+    </p>
+
+    <button id="newAppointment" class="main-btn">Agendar otra cita</button>
+  </div>
+</section>
+
+    </div>
+  </main>
+
+  <footer>
+    © 2025 Universidad Autónoma de La Laguna - Sistema de citas
+  </footer>
+
+  <script src="principal.js"></script>
+</body>
+</html>
