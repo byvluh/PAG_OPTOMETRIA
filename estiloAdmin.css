@@ -209,16 +209,28 @@ h1 {
     color: white;
 }
 
+/* Mejora el estilo del punto indicador de citas */
+.calendar-date.has-appointments {
+    position: relative;
+    font-weight: bold;
+}
+
 .calendar-date.has-appointments::after {
-    content: "";
+    content: '';
     position: absolute;
-    bottom: 5px;
+    bottom: 4px;
     left: 50%;
     transform: translateX(-50%);
     width: 6px;
     height: 6px;
-    background-color: var(--danger);
+    background: #dc3545; /* Rojo más visible */
     border-radius: 50%;
+    border: 1px solid white;
+}
+
+.calendar-date.selected::after {
+    background: white; /* Punto blanco cuando está seleccionado */
+    border: 1px solid #274e3b;
 }
 
 .calendar-date.other-month {
@@ -572,4 +584,116 @@ h1 {
     .modal-actions {
         flex-direction: column;
     }
+}
+
+/* Agrega estos estilos al final de tu estiloAdmin.css */
+
+/* Mejoras para la tabla de horarios */
+.schedule-table td.has-appointment {
+    background-color: #f8f9fa;
+}
+
+.appointment {
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 6px;
+    border-left: 4px solid #274e3b;
+    background: white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+}
+
+.appointment:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.appointment.completed {
+    border-left-color: #28a745;
+    background: #f0fff4;
+}
+
+.appointment.cancelled {
+    border-left-color: #dc3545;
+    background: #fff0f0;
+}
+
+.patient-name {
+    font-weight: bold;
+    color: #274e3b;
+    margin-bottom: 4px;
+}
+
+.patient-info {
+    font-size: 0.85em;
+    color: #666;
+    margin-bottom: 2px;
+}
+
+/* Estados mejorados */
+.status {
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75em;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.status.programada {
+    background: #e3f2fd;
+    color: #1976d2;
+}
+
+.status.completada {
+    background: #e8f5e8;
+    color: #2e7d32;
+}
+
+.status.cancelada {
+    background: #ffebee;
+    color: #c62828;
+}
+
+/* Tarjetas de pacientes mejoradas */
+.patient-card {
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.patient-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+}
+
+.no-appointments {
+    text-align: center;
+    padding: 40px;
+    color: #666;
+    font-style: italic;
+}
+
+/* Mejoras para el calendario */
+.calendar-date.has-appointments {
+    position: relative;
+}
+
+.calendar-date.has-appointments::after {
+    content: '';
+    position: absolute;
+    bottom: 2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 4px;
+    height: 4px;
+    background: #274e3b;
+    border-radius: 50%;
+}
+
+.calendar-date.selected {
+    background: #274e3b !important;
+    color: white !important;
+}
+
+.calendar-date.selected::after {
+    background: white;
 }

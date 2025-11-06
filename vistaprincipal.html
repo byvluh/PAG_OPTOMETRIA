@@ -27,16 +27,16 @@
 
       <!-- Paso 1 -->
       <section class="step-view active">
-         <h2>Bienvenido - paso 1 de 4</h2>
-                <p>¿Eres un paciente nuevo o estas regresando para una visita de seguimiento?</p>
-        <div class="options">
-             <button class="option">Paciente nuevo</button>
-              <button class="option">Paciente habitual</button>
-          </div>
-        <div class="buttons">
-          <button id="next1">Siguiente</button>
-        </div>
-      </section>
+    <h2>Bienvenido - paso 1 de 4</h2>
+    <p>¿Eres un paciente nuevo o estas regresando para una visita de seguimiento?</p>
+    <div class="options">
+        <button class="option" id="optionNuevo">Paciente nuevo</button>
+        <button class="option" id="optionHabitual">Paciente habitual</button>
+    </div>
+    <div class="buttons" style="justify-content: flex-end;"> 
+        <button id="next1" disabled>Siguiente</button> 
+    </div>
+</section>
 
       <!-- Paso 2 -->
       <section class="step-view">
@@ -82,16 +82,15 @@
       </section>
 
       <!-- Paso 4 -->
-      <section class="step-view">
-        
+     <section class="step-view">
+        <h2>Datos del Paciente</h2> 
+        <p>Ingresa o verifica tus datos para la cita.</p>
+
          <div class="form-group">
-                    <input type="text" placeholder="Nombre completo">
-                    <input type="email" placeholder="Correo electrónico">
-                    <input type="tel" placeholder="Teléfono">
-                </div>
+             </div>
         <div class="buttons">
           <button class="back">Atrás</button>
-          <button id="next4">Siguiente</button>
+          <button id="next4">Confirmar Cita</button>
         </div>
       </section>
 
@@ -113,7 +112,7 @@
 
     <p class="message">
       Confirmación enviada.<br>
-      Se ha enviado un mensaje de confirmación a tu correo electrónico.<br>
+      Se le enviará un mensaje de confirmación a su Whatsapp.<br>
       Por favor, llegue 10 minutos antes de su cita.
     </p>
 

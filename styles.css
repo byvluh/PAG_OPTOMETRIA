@@ -120,8 +120,19 @@ p {
 }
 
 .option:hover {
-  background: #274e3b;
+  background: #1e3a2a;
   color: white;
+}
+
+.option.selected {
+  background: #274e3b !important;
+  color: white !important;
+  border-color: #1e3a2a !important;
+}
+
+.option.selected:hover {
+  background: #1e3a2a !important;
+  border-color: #1e3a2a !important;
 }
 
 .buttons {
@@ -390,4 +401,20 @@ input {
   font-size: 14px;
   color: #333;
   margin-bottom: 20px;
+}
+
+
+/* SOLUCIÓN DEFINITIVA - FIJAR ESTILOS DE SELECCIÓN */
+.options .option.selected {
+    background: #274e3b !important;
+    color: white !important;
+    border-color: #1e3a2a !important;
+    transform: scale(1.05);
+    box-shadow: 0 4px 8px rgba(39, 78, 59, 0.3);
+}
+
+.options .option.selected:hover {
+    background: #1e3a2a !important;
+    border-color: #1e3a2a !important;
+    transform: scale(1.05);
 }
