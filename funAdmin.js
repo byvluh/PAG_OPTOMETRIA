@@ -1,4 +1,4 @@
-// funAdmin.js - Funcionalidad completa para el Panel de Administración
+// funAdmin.js - VERSIÓN CORREGIDA
 
 const API_BASE_URL = 'http://127.0.0.1:5000';
 
@@ -9,17 +9,25 @@ let allCitas = [];
 
 // Inicialización cuando el DOM esté listo
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Iniciando panel de administración...');
     initializeAdminPanel();
 });
 
 async function initializeAdminPanel() {
     try {
-        console.log('Inicializando panel de administración...');
+        console.log('🔧 Inicializando panel de administración...');
+        
+        // Verificar autenticación primero
+        const isAuthenticated = await checkAuth();
+        if (!isAuthenticated) {
+            console.log('❌ No autenticado, deteniendo inicialización');
+            return;
+        }
+        
+        console.log('✅ Autenticación verificada, cargando datos...');
+        
+        // Cargar citas y inicializar componentes
         await loadCitas();
-        
-        // DEBUG: Mostrar información de citas
-        debugCitas();
-        
         initializeEventListeners();
         updateCalendar();
         updateSelectedDate(new Date());
@@ -27,10 +35,71 @@ async function initializeAdminPanel() {
         updateScheduleForDate(new Date());
         updatePatientCardsForDate(new Date());
         
-        console.log('Panel de administración inicializado correctamente');
+        console.log('✅ Panel de administración inicializado correctamente');
+        
     } catch (error) {
-        console.error('Error inicializando panel:', error);
+        console.error('❌ Error inicializando panel:', error);
         alert('Error al cargar los datos del panel de administración: ' + error.message);
+    }
+}
+
+// ==================== VERIFICACIÓN DE SESIÓN CORREGIDA ====================
+
+async function checkAuth() {
+    try {
+        console.log('🔐 Verificando sesión...');
+        
+        // PRIMERO: Verificar debug session
+        console.log('🔧 Verificando estado de sesión...');
+        const debugResponse = await fetch(`${API_BASE_URL}/api/debug/session`, {
+            method: 'GET',
+            credentials: 'include', // ¡CRÍTICO! Incluir cookies
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        console.log('🔧 Debug session status:', debugResponse.status);
+        
+        if (debugResponse.ok) {
+            const debugData = await debugResponse.json();
+            console.log('🔧 Debug session data:', debugData);
+            
+            if (debugData.current_user_authenticated) {
+                console.log('✅ Sesión activa encontrada');
+                return true;
+            }
+        }
+        
+        // SEGUNDO: Verificar usuario actual
+        console.log('👤 Verificando usuario actual...');
+        const response = await fetch(`${API_BASE_URL}/api/user/current`, {
+            method: 'GET',
+            credentials: 'include', // ¡CRÍTICO! Incluir cookies
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        console.log('📡 Estado de verificación:', response.status);
+        
+        if (response.ok) {
+            const userData = await response.json();
+            console.log('✅ Usuario autenticado:', userData);
+            return true;
+        } else {
+            console.log('❌ No autenticado, redirigiendo al login');
+            window.location.href = 'login.html';
+            return false;
+        }
+        
+    } catch (error) {
+        console.error('❌ Error verificando autenticación:', error);
+        console.log('⚠️  Redirigiendo al login por error de conexión');
+        window.location.href = 'login.html';
+        return false;
     }
 }
 
@@ -56,45 +125,52 @@ function initializeEventListeners() {
     initializeCalendarEvents();
 }
 
-// ==================== FUNCIONES DE LA API ====================
+// ==================== FUNCIONES DE LA API CORREGIDAS ====================
 
 async function loadCitas() {
     try {
-        console.log('Cargando citas desde API...');
+        console.log('📅 Cargando citas desde API...');
         
-        // Intentar primero la ruta de debug (sin autenticación)
-        let response = await fetch(`${API_BASE_URL}/api/citas/debug`);
+        // Intentar primero la ruta con autenticación
+        let response = await fetch(`${API_BASE_URL}/api/citas/admin`, {
+            method: 'GET',
+            credentials: 'include', // ¡CRÍTICO! Incluir cookies
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        console.log('📊 Respuesta de citas admin:', response.status);
         
         if (!response.ok) {
-            // Si falla, intentar la ruta normal con autenticación
-            console.log('Ruta debug falló, intentando ruta normal...');
-            response = await fetch(`${API_BASE_URL}/api/citas/admin`, {
-                credentials: 'include'
+            // Si falla, intentar la ruta de debug (sin autenticación)
+            console.log('🔄 Ruta admin falló, intentando ruta debug...');
+            response = await fetch(`${API_BASE_URL}/api/citas/debug`, {
+                method: 'GET',
+                credentials: 'include',
+                headers: {
+                    'Accept': 'application/json'
+                }
             });
         }
         
-        console.log('Respuesta de API:', response.status, response.statusText);
+        console.log('📡 Estado final de citas:', response.status, response.statusText);
         
         if (!response.ok) {
-            if (response.status === 401) {
-                throw new Error('No estás autenticado. Por favor inicia sesión.');
-            } else if (response.status === 403) {
-                throw new Error('No tienes permisos para ver las citas.');
-            } else {
-                throw new Error(`Error del servidor: ${response.status}`);
-            }
+            throw new Error(`Error del servidor: ${response.status}`);
         }
         
         allCitas = await response.json();
-        console.log('Citas cargadas correctamente:', allCitas);
+        console.log('✅ Citas cargadas correctamente:', allCitas.length, 'citas');
         
         return allCitas;
         
     } catch (error) {
-        console.error('Error cargando citas:', error);
+        console.error('❌ Error cargando citas:', error);
         
         // Para desarrollo, mostrar datos de demo
-        console.log('Usando datos de demo para desarrollo');
+        console.log('⚠️ Usando datos de demo para desarrollo');
         allCitas = getDemoCitas();
         return allCitas;
     }
@@ -102,13 +178,22 @@ async function loadCitas() {
 
 async function updateAppointmentStatus(citaId, nuevoEstado) {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/citas/${citaId}`, {
+        // Usamos la ruta de edición completa para asegurar la auditoría, aunque solo cambiemos el estado.
+        const response = await fetch(`${API_BASE_URL}/api/citas/${citaId}/editar`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
             },
-            credentials: 'include',
-            body: JSON.stringify({ estado: nuevoEstado })
+            credentials: 'include', // ¡CRÍTICO! Incluir cookies
+            body: JSON.stringify({ 
+                estado: nuevoEstado,
+                // Auditoría simulada para cancelación rápida
+                matricula_editor: 'QUICKEDIT', 
+                tipo_modificacion: 'cancelar',
+                motivo_modificacion: 'Cancelación rápida desde panel',
+                detalle_motivo: 'Cancelado por el usuario del panel de admin',
+                fecha_modificacion: new Date().toISOString()
+            })
         });
         
         if (response.ok) {
@@ -117,13 +202,14 @@ async function updateAppointmentStatus(citaId, nuevoEstado) {
             updatePatientCardsForDate(selectedCalendarDate || new Date());
             updateStats();
             closeModal();
-            alert('Estado de cita actualizado correctamente');
+            alert('Estado de cita actualizado correctamente a: ' + nuevoEstado);
         } else {
-            throw new Error('Error al actualizar cita');
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Error al actualizar cita');
         }
     } catch (error) {
         console.error('Error actualizando cita:', error);
-        alert('Error al actualizar el estado de la cita');
+        alert('Error al actualizar el estado de la cita: ' + error.message);
     }
 }
 
@@ -151,7 +237,7 @@ function updateCalendar() {
 }
 
 function markDaysWithAppointments() {
-    console.log('Marcando días con citas en el calendario...');
+    console.log('📅 Marcando días con citas en el calendario...');
     
     // Limpiar marcadores anteriores
     document.querySelectorAll('.has-appointments').forEach(el => {
@@ -163,31 +249,38 @@ function markDaysWithAppointments() {
     allCitas.forEach(cita => {
         citasPorDia[cita.fecha] = (citasPorDia[cita.fecha] || 0) + 1;
     });
-    console.log('Citas por día:', citasPorDia);
+    console.log('📊 Citas por día:', citasPorDia);
     
     // Marcar días que tienen citas
     allCitas.forEach(cita => {
         const citaDate = new Date(cita.fecha);
-        if (citaDate.getMonth() === currentDate.getMonth() && 
-            citaDate.getFullYear() === currentDate.getFullYear()) {
+        // Ajuste: las fechas de la BD vienen sin hora y JS las interpreta en UTC, forzando la fecha al día anterior. 
+        // Se corrige cargando solo la parte de la fecha.
+        const citaDateFixed = new Date(cita.fecha + 'T00:00:00'); 
+
+        if (citaDateFixed.getMonth() === currentDate.getMonth() && 
+            citaDateFixed.getFullYear() === currentDate.getFullYear()) {
             
             const dayElements = document.querySelectorAll('.calendar-date:not(.other-month)');
             dayElements.forEach(dayElement => {
                 const dayNumber = parseInt(dayElement.textContent);
-                if (dayNumber === citaDate.getDate()) {
+                if (dayNumber === citaDateFixed.getDate()) {
                     dayElement.classList.add('has-appointments');
-                    console.log(`Marcado día ${dayNumber} con cita`);
+                    // console.log(`📍 Marcado día ${dayNumber} con cita`);
                 }
             });
         }
     });
     
-    console.log('Días marcados:', document.querySelectorAll('.has-appointments').length);
+    console.log('✅ Días marcados:', document.querySelectorAll('.has-appointments').length);
 }
 
 function initializeCalendarEvents() {
-    const calendarDates = document.querySelectorAll('.calendar-date:not(.other-month)');
+    // Re-bindear eventos al actualizar el calendario
+    const calendarDates = document.querySelectorAll('.calendar-grid .calendar-date:not(.other-month)');
     calendarDates.forEach(date => {
+        // Evitar múltiples listeners
+        date.removeEventListener('click', handleDateSelection); 
         date.addEventListener('click', function() {
             handleDateSelection(this);
         });
@@ -196,17 +289,22 @@ function initializeCalendarEvents() {
 
 function handleDateSelection(dateElement) {
     const selectedDay = parseInt(dateElement.textContent);
+    
+    // Usamos el año y mes actual para construir la fecha
     selectedCalendarDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), selectedDay);
     
+    // Ajuste para evitar problemas de zona horaria al formatear
+    const fixedDate = new Date(selectedCalendarDate.getTime() - selectedCalendarDate.getTimezoneOffset() * 60000); 
+
     // Actualizar selección visual
     document.querySelectorAll('.calendar-date').forEach(date => {
         date.classList.remove('selected');
     });
     dateElement.classList.add('selected');
     
-    updateSelectedDate(selectedCalendarDate);
-    updateScheduleForDate(selectedCalendarDate);
-    updatePatientCardsForDate(selectedCalendarDate);
+    updateSelectedDate(fixedDate);
+    updateScheduleForDate(fixedDate);
+    updatePatientCardsForDate(fixedDate);
 }
 
 function updateSelectedDate(date) {
@@ -225,35 +323,42 @@ function updateSelectedDate(date) {
 // ==================== TABLA DE HORARIOS CON DATOS REALES ====================
 
 function updateScheduleForDate(date) {
+    // Formato 'YYYY-MM-DD' para comparar con la BD
     const dateString = date.toISOString().split('T')[0];
     const citasDelDia = allCitas.filter(cita => cita.fecha === dateString);
     
-    console.log(`Actualizando horario para ${dateString}:`, citasDelDia.length, 'citas');
+    console.log(`🕒 Actualizando horario para ${dateString}:`, citasDelDia.length, 'citas');
     
     // Limpiar toda la tabla primero
     const tableCells = document.querySelectorAll('.schedule-table td');
     tableCells.forEach(cell => {
         if (!cell.classList.contains('time-slot')) {
             cell.innerHTML = 'Disponible';
-            cell.classList.remove('has-appointment');
+            cell.classList.remove('has-appointment', 'completed', 'cancelled');
         }
     });
     
     // Llenar tabla con citas del día
     citasDelDia.forEach(cita => {
         const hora = cita.hora.substring(0, 5);
-        const gabineteNum = parseInt(cita.gabinete.replace('Gabinete ', ''));
+        // Extraer número de gabinete (ej: "Gabinete 3" -> 3)
+        const gabineteMatch = cita.gabinete.match(/\d+/);
+        const gabineteNum = gabineteMatch ? parseInt(gabineteMatch[0]) : 0;
         
-        if (gabineteNum <= 5) { // Solo gabinetes 1-5 para la tabla
+        if (gabineteNum >= 1 && gabineteNum <= 5) { // Solo gabinetes 1-5 para la tabla de ejemplo
             const timeSlotRow = findTimeSlotRow(hora);
             if (timeSlotRow) {
                 const gabineteCell = timeSlotRow.cells[gabineteNum];
-                gabineteCell.innerHTML = createAppointmentHTML(cita);
-                gabineteCell.classList.add('has-appointment');
-                
-                // Agregar event listener
-                const appointmentElement = gabineteCell.querySelector('.appointment');
-                appointmentElement.addEventListener('click', () => showAppointmentDetails(cita));
+                if (gabineteCell) { // Asegurar que la celda existe
+                    gabineteCell.innerHTML = createAppointmentHTML(cita);
+                    gabineteCell.classList.add('has-appointment', cita.estado.toLowerCase().replace(' ', '-'));
+                    
+                    // Agregar event listener
+                    const appointmentElement = gabineteCell.querySelector('.appointment');
+                    if (appointmentElement) {
+                        appointmentElement.addEventListener('click', () => showAppointmentDetails(cita));
+                    }
+                }
             }
         }
     });
@@ -272,7 +377,7 @@ function findTimeSlotRow(hora) {
 }
 
 function createAppointmentHTML(cita) {
-    const statusClass = getStatusClass(cita.estado);
+    const statusClass = cita.estado.toLowerCase().replace(' ', '-');
     const nombreCompleto = `${cita.paciente.nombre} ${cita.paciente.apellido}`;
     const shortName = nombreCompleto.length > 20 ? 
         nombreCompleto.substring(0, 20) + '...' : nombreCompleto;
@@ -283,7 +388,7 @@ function createAppointmentHTML(cita) {
             <div class="patient-name">${shortName}</div>
             <div class="patient-info">Edad: ${cita.paciente.edad}</div>
             <div class="patient-info">${cita.motivo}</div>
-            <span class="status ${cita.estado.toLowerCase()}">${cita.estado}</span>
+            <span class="status ${statusClass}">${cita.estado}</span>
         </div>
     `;
 }
@@ -291,6 +396,7 @@ function createAppointmentHTML(cita) {
 // ==================== TARJETAS DE PACIENTES CON DATOS REALES ====================
 
 function updatePatientCardsForDate(date) {
+    // Formato 'YYYY-MM-DD' para comparar con la BD
     const dateString = date.toISOString().split('T')[0];
     const citasDelDia = allCitas.filter(cita => cita.fecha === dateString);
     const container = document.querySelector('.patient-cards');
@@ -305,6 +411,7 @@ function updatePatientCardsForDate(date) {
     citasDelDia.forEach(cita => {
         const card = document.createElement('div');
         card.className = 'patient-card';
+        card.classList.add(cita.estado.toLowerCase().replace(' ', '-')); // Añadir clase de estado
         card.innerHTML = createPatientCardHTML(cita);
         card.addEventListener('click', () => showAppointmentDetails(cita));
         container.appendChild(card);
@@ -313,6 +420,7 @@ function updatePatientCardsForDate(date) {
 
 function createPatientCardHTML(cita) {
     const nombreCompleto = `${cita.paciente.nombre} ${cita.paciente.apellido}`;
+    const statusClass = cita.estado.toLowerCase().replace(' ', '-');
     
     return `
         <div class="patient-card-header">
@@ -323,7 +431,7 @@ function createPatientCardHTML(cita) {
         <div class="patient-card-info">Tel: ${cita.paciente.telefono}</div>
         <div class="patient-card-info">Hora: ${cita.hora.substring(0, 5)} hrs</div>
         <div class="patient-card-info">Servicio: ${cita.motivo}</div>
-        <span class="status ${cita.estado.toLowerCase()}">${cita.estado}</span>
+        <span class="status ${statusClass}">${cita.estado}</span>
     `;
 }
 
@@ -339,8 +447,9 @@ function showAppointmentDetails(cita) {
     document.getElementById('modal-time').textContent = `${cita.hora.substring(0, 5)} hrs`;
     
     const statusElement = document.getElementById('modal-status');
+    const statusClass = cita.estado.toLowerCase().replace(' ', '-');
     statusElement.textContent = cita.estado;
-    statusElement.className = `status ${cita.estado.toLowerCase()}`;
+    statusElement.className = `status ${statusClass}`;
     
     // Actualizar notas con información real
     const notesElement = document.getElementById('modal-notes');
@@ -353,9 +462,9 @@ function showAppointmentDetails(cita) {
 }
 
 function getAdditionalNotes(cita) {
-    if (cita.motivo.includes('armazón')) {
+    if (cita.motivo.toLowerCase().includes('armazón')) {
         return 'Paciente requiere examen completo para lentes de armazón.';
-    } else if (cita.motivo.includes('contacto')) {
+    } else if (cita.motivo.toLowerCase().includes('contacto')) {
         return 'Paciente interesado en lentes de contacto. Evaluar adaptación.';
     }
     return 'Examen de rutina. Verificar agudeza visual y salud ocular.';
@@ -365,9 +474,274 @@ function closeModal() {
     document.getElementById('appointment-modal').style.display = 'none';
 }
 
+// ==================== FUNCIONALIDAD MEJORADA DE EDICIÓN ====================
+
 function editAppointment() {
     const citaId = document.getElementById('appointment-modal').dataset.citaId;
-    alert(`Editar cita ${citaId} - Funcionalidad en desarrollo`);
+    if (!citaId) {
+        alert('❌ No se pudo obtener el ID de la cita');
+        return;
+    }
+    closeModal(); // Cerrar modal de detalles
+    
+    // Buscar la cita completa en el arreglo global para evitar un fetch adicional
+    const cita = allCitas.find(c => c.id_cita == citaId);
+    if (!cita) {
+        alert('❌ Cita no encontrada en la memoria.');
+        return;
+    }
+    
+    showEditModal(cita); // Abrir modal de edición con los datos
+}
+
+// Se elimina openEditModal ya que los datos ya están en allCitas
+
+function showEditModal(cita) {
+    const modalHTML = `
+        <div id="edit-modal" class="modal">
+            <div class="modal-content" style="max-width: 700px;">
+                <div class="modal-header">
+                    <h2><i class="fas fa-edit"></i> Editar Cita - ${cita.paciente.nombre} ${cita.paciente.apellido}</h2>
+                    <span class="close" onclick="closeEditModal()">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <form id="edit-cita-form">
+                        <input type="hidden" id="edit-cita-id" value="${cita.id_cita}">
+                        
+                        <div class="current-info" style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                            <h4 style="margin-top: 0; color: #274e3b;">📋 Información Actual</h4>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                                <div><strong>Paciente:</strong> ${cita.paciente.nombre} ${cita.paciente.apellido}</div>
+                                <div><strong>Teléfono:</strong> ${cita.paciente.telefono}</div>
+                                <div><strong>Fecha Original:</strong> ${cita.fecha}</div>
+                                <div><strong>Hora Original:</strong> ${cita.hora.substring(0,5)} hrs</div>
+                                <div><strong>Gabinete:</strong> ${cita.gabinete}</div>
+                                <div><strong>Servicio:</strong> ${cita.motivo}</div>
+                                <div><strong>Estado:</strong> <span class="status ${cita.estado.toLowerCase().replace(' ', '-')}">${cita.estado}</span></div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="edit-matricula"><i class="fas fa-id-card"></i> Tu Matrícula:</label>
+                            <input type="text" id="edit-matricula" 
+                                   placeholder="Ej: 2024001 o 99999" 
+                                   pattern="[0-9]+" // <-- CORRECCIÓN: Solo números
+                                   title="Solo números"
+                                   required>
+                            <small>Ingresa tu matrícula para registrar quién realizó el cambio</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="edit-tipo-modificacion"><i class="fas fa-tag"></i> Tipo de Modificación:</label>
+                            <select id="edit-tipo-modificacion" required>
+                                <option value="">Selecciona el tipo de modificación</option>
+                                <option value="reagendar">Reagendar Cita</option>
+                                <option value="cancelar">Cancelar Cita</option>
+                                <option value="cambio_estado">Cambiar Estado</option>
+                            </select>
+                        </div>
+
+                        <div id="edit-fields-container">
+                            <div class="form-group" id="reagendar-fields" style="display: none;">
+                                <label for="edit-fecha">Nueva Fecha:</label>
+                                <input type="date" id="edit-fecha" value="${cita.fecha}">
+                            </div>
+                            
+                            <div class="form-group" id="reagendar-time-fields" style="display: none;">
+                                <label for="edit-hora">Nueva Hora:</label>
+                                <select id="edit-hora">
+                                    <option value="">Selecciona una hora</option>
+                                    <option value="12:30:00" ${cita.hora.includes('12:30') ? 'selected' : ''}>12:30 PM</option>
+                                    <option value="13:30:00" ${cita.hora.includes('13:30') ? 'selected' : ''}>1:30 PM</option>
+                                    <option value="14:30:00" ${cita.hora.includes('14:30') ? 'selected' : ''}>2:30 PM</option>
+                                    <option value="15:30:00" ${cita.hora.includes('15:30') ? 'selected' : ''}>3:30 PM</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group" id="estado-fields" style="display: none;">
+                                <label for="edit-estado">Nuevo Estado:</label>
+                                <select id="edit-estado">
+                                    <option value="Programada" ${cita.estado === 'Programada' ? 'selected' : ''}>Programada</option>
+                                    <option value="Completada" ${cita.estado === 'Completada' ? 'selected' : ''}>Completada</option>
+                                    <option value="Cancelada" ${cita.estado === 'Cancelada' ? 'selected' : ''}>Cancelada</option>
+                                    <option value="No asistió" ${cita.estado === 'No asistió' ? 'selected' : ''}>No asistió</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="edit-motivo-modificacion"><i class="fas fa-clipboard-list"></i> Motivo de la Modificación:</label>
+                            <select id="edit-motivo-modificacion" required>
+                                <option value="">Selecciona el motivo</option>
+                                <option value="Solicitud del paciente">Solicitud del paciente</option>
+                                <option value="Disponibilidad de gabinete">Disponibilidad de gabinete</option>
+                                <option value="Conflicto de horario">Conflicto de horario</option>
+                                <option value="Emergencia">Emergencia</option>
+                                <option value="Error en agendamiento">Error en agendamiento</option>
+                                <option value="Otro">Otro motivo</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="edit-detalle-motivo"><i class="fas fa-comment"></i> Detalle del Motivo:</label>
+                            <textarea id="edit-detalle-motivo" 
+                                      placeholder="Explica brevemente por qué se modifica la cita..."
+                                      rows="3" required></textarea>
+                        </div>
+                        
+                        <div class="modal-actions">
+                            <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Cancelar</button>
+                            <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    document.getElementById('edit-modal').style.display = 'block';
+    
+    // Configurar eventos dinámicos
+    setupEditModalEvents();
+    document.getElementById('edit-cita-form').addEventListener('submit', handleEditFormSubmit);
+}
+
+function setupEditModalEvents() {
+    // Mostrar/ocultar campos según tipo de modificación
+    const tipoModificacion = document.getElementById('edit-tipo-modificacion');
+    if (tipoModificacion) {
+        tipoModificacion.addEventListener('change', function() {
+            const tipo = this.value;
+            
+            // Ocultar todos los campos primero
+            const reagendarFields = document.getElementById('reagendar-fields');
+            const reagendarTimeFields = document.getElementById('reagendar-time-fields');
+            const estadoFields = document.getElementById('estado-fields');
+            
+            if (reagendarFields) reagendarFields.style.display = 'none';
+            if (reagendarTimeFields) reagendarTimeFields.style.display = 'none';
+            if (estadoFields) estadoFields.style.display = 'none';
+            
+            // Mostrar campos según tipo
+            if (tipo === 'reagendar') {
+                if (reagendarFields) reagendarFields.style.display = 'block';
+                if (reagendarTimeFields) reagendarTimeFields.style.display = 'block';
+            } else if (tipo === 'cambio_estado' || tipo === 'cancelar') {
+                if (estadoFields) estadoFields.style.display = 'block';
+                if (tipo === 'cancelar') {
+                    document.getElementById('edit-estado').value = 'Cancelada';
+                }
+            }
+        });
+    }
+    
+    // Validación de matrícula en tiempo real
+    const matriculaInput = document.getElementById('edit-matricula');
+    if (matriculaInput) {
+        matriculaInput.addEventListener('input', function() {
+            const value = this.value;
+            // CORRECCIÓN: Validar que solo contenga NÚMEROS (no contenga letras)
+            if (!/^[0-9]*$/.test(value)) { 
+                this.setCustomValidity('La matrícula solo puede contener números');
+            } else {
+                this.setCustomValidity('');
+            }
+        });
+    }
+}
+
+function closeEditModal() {
+    const modal = document.getElementById('edit-modal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+async function handleEditFormSubmit(event) {
+    event.preventDefault();
+    
+    const matricula = document.getElementById('edit-matricula').value;
+    const tipoModificacion = document.getElementById('edit-tipo-modificacion').value;
+    const motivoModificacion = document.getElementById('edit-motivo-modificacion').value;
+    const detalleMotivo = document.getElementById('edit-detalle-motivo').value;
+    
+    // CORRECCIÓN: Validar matrícula (Solo números)
+    if (!/^[0-9]+$/.test(matricula)) {
+        alert('❌ La matrícula solo debe contener números');
+        return;
+    }
+    
+    if (!matricula) {
+        alert('Por favor ingresa tu matrícula para registrar el cambio');
+        return;
+    }
+    
+    const formData = {
+        id_cita: document.getElementById('edit-cita-id').value,
+        // Información de auditoría
+        matricula_editor: matricula,
+        tipo_modificacion: tipoModificacion,
+        motivo_modificacion: motivoModificacion,
+        detalle_motivo: detalleMotivo,
+        fecha_modificacion: new Date().toISOString()
+    };
+    
+    // Agregar campos según tipo de modificación
+    if (tipoModificacion === 'reagendar') {
+        formData.fecha = document.getElementById('edit-fecha').value;
+        formData.hora = document.getElementById('edit-hora').value;
+        
+        if (!formData.fecha || !formData.hora) {
+            alert('Por favor completa la fecha y hora para reagendar');
+            return;
+        }
+    }
+    
+    if (tipoModificacion === 'cambio_estado' || tipoModificacion === 'cancelar') {
+        formData.estado = document.getElementById('edit-estado').value;
+    }
+    
+    try {
+        console.log('📤 Enviando datos de modificación:', formData);
+        
+        const response = await fetch(`${API_BASE_URL}/api/citas/${formData.id_cita}/editar`, {
+            method: 'PUT',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify(formData)
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            
+            // Mostrar confirmación detallada
+            let mensaje = `✅ Modificación realizada exitosamente\n`;
+            mensaje += `📝 Registrado por: ${matricula}\n`;
+            mensaje += `🎯 Tipo: ${tipoModificacion}\n`;
+            mensaje += `📋 Motivo: ${motivoModificacion}`;
+            
+            alert(mensaje);
+            closeEditModal();
+            
+            // Recargar datos
+            await loadCitas();
+            updateScheduleForDate(selectedCalendarDate || new Date());
+            updatePatientCardsForDate(selectedCalendarDate || new Date());
+            updateStats();
+            
+        } else {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Error al actualizar cita');
+        }
+        
+    } catch (error) {
+        console.error('❌ Error actualizando cita:', error);
+        alert('❌ Error al modificar la cita: ' + error.message);
+    }
 }
 
 function printAppointment() {
@@ -406,7 +780,8 @@ function printAppointment() {
 function cancelAppointment() {
     const citaId = document.getElementById('appointment-modal').dataset.citaId;
     if (confirm('¿Estás seguro de que quieres cancelar esta cita?')) {
-        updateAppointmentStatus(citaId, 'Cancelada');
+        // Se usa la función de edición completa con auditoría
+        updateAppointmentStatus(citaId, 'Cancelada'); 
     }
 }
 
@@ -417,8 +792,9 @@ function updateStats() {
     const completadas = allCitas.filter(c => c.estado && c.estado.toLowerCase() === 'completada').length;
     const programadas = allCitas.filter(c => c.estado && c.estado.toLowerCase() === 'programada').length;
     const canceladas = allCitas.filter(c => c.estado && c.estado.toLowerCase() === 'cancelada').length;
+    const noAsistio = allCitas.filter(c => c.estado && c.estado.toLowerCase() === 'no asistió').length;
     
-    console.log('Actualizando estadísticas:', { totalCitas, completadas, programadas, canceladas });
+    console.log('📊 Actualizando estadísticas:', { totalCitas, completadas, programadas, canceladas, noAsistio });
     
     // Actualizar estadísticas generales
     const statNumbers = document.querySelectorAll('.stats-grid .stat-number');
@@ -426,7 +802,7 @@ function updateStats() {
         statNumbers[0].textContent = totalCitas;
         statNumbers[1].textContent = completadas;
         statNumbers[2].textContent = programadas;
-        statNumbers[3].textContent = canceladas;
+        statNumbers[3].textContent = canceladas + noAsistio; // Canceladas + No Asistió
     }
     
     // Actualizar estadísticas del día
@@ -435,7 +811,7 @@ function updateStats() {
     
     const atendidasHoy = citasHoy.filter(c => c.estado && c.estado.toLowerCase() === 'completada').length;
     const pendientesHoy = citasHoy.filter(c => c.estado && c.estado.toLowerCase() === 'programada').length;
-    const noAtendidasHoy = citasHoy.filter(c => c.estado && c.estado.toLowerCase() === 'cancelada').length;
+    const noAtendidasHoy = citasHoy.filter(c => c.estado && (c.estado.toLowerCase() === 'cancelada' || c.estado.toLowerCase() === 'no asistió')).length;
     
     const dayStats = document.querySelectorAll('.day-stats-grid .stat-number');
     if (dayStats.length >= 3) {
@@ -453,6 +829,7 @@ function getStatusClass(estado) {
     switch(estado.toLowerCase()) {
         case 'completada': return 'completed';
         case 'cancelada': return 'cancelled';
+        case 'no asistió': return 'cancelled'; // Se usa el mismo estilo para 'No asistió'
         default: return '';
     }
 }
@@ -484,7 +861,7 @@ function getDemoCitas() {
         {
             id_cita: 1,
             fecha: today,
-            hora: '09:00:00',
+            hora: '12:30:00',
             paciente: { nombre: 'María', apellido: 'García López', edad: 25, telefono: '555-0101' },
             motivo: 'Lentes graduados de armazón',
             gabinete: 'Gabinete 1',
@@ -493,11 +870,20 @@ function getDemoCitas() {
         {
             id_cita: 2,
             fecha: today,
-            hora: '10:00:00',
+            hora: '13:30:00',
             paciente: { nombre: 'Juan Carlos', apellido: 'Martínez Rodríguez', edad: 30, telefono: '555-0102' },
             motivo: 'Lentes de contacto',
             gabinete: 'Gabinete 2',
             estado: 'Programada'
-        }
+        },
+         {
+            id_cita: 3,
+            fecha: today,
+            hora: '12:30:00',
+            paciente: { nombre: 'Laura', apellido: 'Perez Diaz', edad: 40, telefono: '555-0103' },
+            motivo: 'Lentes de contacto',
+            gabinete: 'Gabinete 3',
+            estado: 'Completada'
+        },
     ];
 }

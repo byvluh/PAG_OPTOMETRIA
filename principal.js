@@ -77,7 +77,7 @@ function setupStep4Form() {
 
     if (isNewPatient) {
         step4View.innerHTML = `
-            <input type="text" id="inputNombre" placeholder="Nombre completo" required>
+            <input type="text" id="inputNombre" placeholder="Nombre" required>
             <input type="text" id="inputApellido" placeholder="Apellido(s)" required>
             <input type="number" id="inputEdad" placeholder="Edad" required>
             <input type="tel" id="inputTelefono" placeholder="Teléfono" required>
@@ -137,7 +137,10 @@ document.getElementById('next4').onclick = async () => {
     // Validar si es paciente nuevo o habitual antes de avanzar
     if (isNewPatient) {
         // Validar campos de paciente nuevo
-        if (!document.getElementById('inputNombre')?.value || !document.getElementById('inputTelefono')?.value) {
+        if (!document.getElementById('inputNombre')?.value || 
+            !document.getElementById('inputApellido')?.value ||
+            !document.getElementById('inputEdad')?.value ||
+            !document.getElementById('inputTelefono')?.value) {
             alert('Por favor, completa todos los campos.');
             return;
         }
@@ -238,15 +241,25 @@ function generateCalendar(date) {
         dayDiv.textContent = d;
         dayDiv.classList.add('day');
         
-        const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        // CORRECCIÓN para evitar problemas de zona horaria: Crear la fecha con hora fija (00:00:00)
+        const dayDate = new Date(year, month, d, 0, 0, 0); 
+        const dateKey = dayDate.toISOString().split('T')[0];
         
         // Deshabilitar fines de semana (Domingo: 0, Sábado: 6)
-        const dayOfWeek = new Date(year, month, d).getDay();
+        const dayOfWeek = dayDate.getDay();
         if (dayOfWeek === 0 || dayOfWeek === 6) {
             dayDiv.classList.add('disabled', 'other-month');
             dayDiv.style.cursor = 'not-allowed';
         } else {
-            dayDiv.addEventListener('click', () => selectDate(dateKey, dayDiv));
+            // Deshabilitar días pasados
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            if (dayDate < today) {
+                 dayDiv.classList.add('disabled', 'other-month');
+                 dayDiv.style.cursor = 'not-allowed';
+            } else {
+                dayDiv.addEventListener('click', () => selectDate(dateKey, dayDiv));
+            }
         }
 
         if (selectedDate === dateKey) dayDiv.classList.add('selected');
@@ -293,7 +306,7 @@ async function selectDate(dateKey, dayDiv) {
 
 function generateTimeSlots(disponibilidad) {
     timeSlotsEl.innerHTML = '';
-    const availableHours = Object.keys(disponibilidad);
+    const availableHours = Object.keys(disponibilidad).sort();
     
     if (availableHours.length === 0) {
         timeSlotsEl.innerHTML = '<div style="color: #d82b2b;">No hay horarios disponibles para este día.</div>';
@@ -316,6 +329,11 @@ function generateTimeSlots(disponibilidad) {
             timeSlotDiv.addEventListener('click', () => selectTime(timeSlotDiv, timeKey));
         }
 
+        // Si la hora ya estaba seleccionada, la marcamos de nuevo
+        if (selectedTime === timeKey) {
+            timeSlotDiv.classList.add('selected');
+        }
+
         timeSlotsEl.appendChild(timeSlotDiv);
     });
 }
@@ -334,7 +352,8 @@ function updateSummary() {
         return;
     }
 
-    const dateObj = new Date(selectedDate.replace(/-/g, '/')); // Fix para compatibilidad
+    // CORRECCIÓN: Usar la cadena de fecha directamente para Date si es 'YYYY-MM-DD' para evitar problemas de zona horaria
+    const dateObj = new Date(selectedDate + 'T00:00:00'); 
     const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
     const formattedDate = dateObj.toLocaleDateString('es-ES', options);
     
@@ -362,6 +381,7 @@ nextBtn.onclick = () => {
 document.getElementById('next3').onclick = () => {
     if (selectedDate && selectedTime) {
         showStep(4);
+        setupStep4Form(); // Asegurar que el formulario se configure al llegar al paso 4
     } else {
         alert('Por favor, selecciona una fecha y hora disponibles.');
     }
@@ -373,7 +393,8 @@ document.getElementById('next3').onclick = () => {
 async function agendarCita() {
     const motivoEl = document.querySelector('.step-view:nth-of-type(2) .option.selected');
     const tipoServicio = motivoEl.textContent;
-    const id_motivo = (tipoServicio === 'Lentes de Armazón' ? 1 : 2); // Hardcoded según config.py
+    // Hardcoded según config.py
+    const id_motivo = (tipoServicio === 'Lentes de Armazón' ? 1 : 2); 
     
     const citaData = {
         fecha: selectedDate,
@@ -383,8 +404,8 @@ async function agendarCita() {
     };
 
     if (isNewPatient) {
-        citaData.nombre = document.getElementById('inputNombre').value.split(' ')[0];
-        citaData.apellido = document.getElementById('inputApellido').value; // Simplificación
+        citaData.nombre = document.getElementById('inputNombre').value;
+        citaData.apellido = document.getElementById('inputApellido').value; 
         citaData.edad = document.getElementById('inputEdad').value;
         citaData.telefono = document.getElementById('inputTelefono').value;
     } else {
@@ -452,8 +473,13 @@ document.getElementById('newAppointment').addEventListener('click', () => {
 
     document.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
     document.getElementById('selectedText').textContent = 'Ninguna';
-    document.querySelector('.step-view:nth-of-type(4) .form-group').innerHTML = ''; // Limpiar form
     
+    // Limpiar el formulario del paso 4
+    const step4FormGroup = document.querySelector('.step-view:nth-of-type(4) .form-group');
+    if (step4FormGroup) {
+        step4FormGroup.innerHTML = '';
+    }
+
     showStep(currentStep);
 });
 

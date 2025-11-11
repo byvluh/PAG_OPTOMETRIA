@@ -697,3 +697,70 @@ h1 {
 .calendar-date.selected::after {
     background: white;
 }
+
+/* estilosAdmin.css - AGREGAR estos estilos al final del archivo */
+
+/* Modal de edición */
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: var(--primary);
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--light-gray);
+    border-radius: 8px;
+    font-size: 1rem;
+}
+
+.form-group textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.form-group small {
+    display: block;
+    margin-top: 0.25rem;
+    color: var(--gray);
+    font-size: 0.8rem;
+}
+
+.patient-info-preview {
+    background: var(--light-bg);
+    padding: 1rem;
+    border-radius: 8px;
+    margin: 1rem 0;
+    border-left: 4px solid var(--primary);
+}
+
+.patient-info-preview h4 {
+    margin: 0 0 0.5rem 0;
+    color: var(--primary);
+}
+
+.patient-info-preview p {
+    margin: 0.25rem 0;
+}
+
+/* Estados de cita */
+.status.programada { background-color: #e3f2fd; color: #1976d2; }
+.status.completada { background-color: #e8f5e8; color: #2e7d32; }
+.status.cancelada { background-color: #ffebee; color: #c62828; }
+.status.no-asistio { background-color: #fff3e0; color: #ef6c00; }
+
+/* Responsive */
+@media (max-width: 768px) {
+    .modal-content {
+        margin: 5% auto;
+        width: 95%;
+    }
+}

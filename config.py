@@ -1,20 +1,22 @@
 # config.py
-#Este archivo maneja la configuración de la base de datos y las claves secretas
-
 import os
 
 class Config:
-    # Clave secreta para la seguridad de la sesión de Flask
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'una_clave_secreta_fuerte'
-
-    # Configuración de la base de datos MySQL (ajusta estos valores)
-    # Formato: dialect+driver://user:password@host:port/database
-    SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://root:@localhost/ual_optometria'
+    # Clave secreta PARA DESARROLLO - en producción usar variable de entorno
+    SECRET_KEY = os.environ.get('SECRET_KEY') or 'clave_super_secreta_para_desarrollo_2025_optometria_ual'
     
-    # Desactiva la señalización para ahorrar recursos
+    # Configuración de la base de datos MySQL
+    SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://root:@localhost/ual_optometria'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
-    # Gabinetes disponibles (6 gabinetes)
+    # Configuración de sesión CRÍTICA
+    SESSION_COOKIE_SECURE = False  # False para desarrollo (HTTP)
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    PERMANENT_SESSION_LIFETIME = 3600  # 1 hora en segundos
+    REMEMBER_COOKIE_DURATION = 3600
+    
+    # Gabinetes disponibles
     GABINETES = [
         {'id': 1, 'nombre': 'Gabinete 1'},
         {'id': 2, 'nombre': 'Gabinete 2'},
@@ -30,8 +32,7 @@ class Config:
         {'id': 2, 'descripcion': 'Lentes de contacto'},
     ]
 
-    # Horarios de atención más amplios para pruebas
-    HORARIOS_ATENCION = [  # <-- ESTA LÍNEA DEBE ESTAR INDENTADA
-        '12:30:00','13:30:00','14:30:00', '15:30:00'
-    ]  # <-- ESTA LÍNEA TAMBIÉN DEBE ESTAR INDENTADA
-    
+    # Horarios de atención
+    HORARIOS_ATENCION = [
+        '12:30:00', '13:30:00', '14:30:00', '15:30:00'
+    ]
