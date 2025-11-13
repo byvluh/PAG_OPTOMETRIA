@@ -13,11 +13,144 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeAdminPanel();
 });
 
-async function initializeAdminPanel() {
+// funcion de navegacion
+function showSection(sectionName) {
+    // Ocultar todas las secciones
+    document.querySelectorAll('.admin-section').forEach(section => {
+        section.style.display = 'none';
+    });
+    
+    // Remover activo de todos los botones
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    // Mostrar sección seleccionada y activar botón
+    document.getElementById(sectionName + 'Section').style.display = 'block';
+    event.target.classList.add('active');
+}
+
+// Agregar función para manejar el formulario de terapia visual
+document.addEventListener('DOMContentLoaded', function() {
+    // ... código existente ...
+    
+    // Agregar event listener para el formulario de terapia visual
+    const terapiaForm = document.getElementById('terapiaVisualForm');
+    if (terapiaForm) {
+        terapiaForm.addEventListener('submit', handleTerapiaVisualSubmit);
+    }
+    
+    // Establecer fecha mínima como hoy
+    const fechaInput = document.getElementById('terapiaFecha');
+    if (fechaInput) {
+        const today = new Date().toISOString().split('T')[0];
+        fechaInput.min = today;
+        fechaInput.value = today;
+    }
+});
+
+async function handleTerapiaVisualSubmit(event) {
+    event.preventDefault();
+    
+    console.log("🔄 Iniciando envío de terapia visual...");
+    
+    // Obtener y validar datos
+    const nombrePaciente = document.getElementById('terapiaNombre').value;
+    const fechaInput = document.getElementById('terapiaFecha').value;
+    const horaSelect = document.getElementById('terapiaHora');
+    const horaValor = horaSelect.options[horaSelect.selectedIndex].value;
+    
+    if (!nombrePaciente || !fechaInput || !horaValor) {
+        alert('Por favor completa todos los campos requeridos');
+        return;
+    }
+    
+    // Validar formato de fecha (debe ser YYYY-MM-DD)
+    let fechaFormateada = fechaInput;
+    
+    // Si el input type="date" funciona correctamente, ya vendrá en formato YYYY-MM-DD
+    console.log(`📊 Datos a enviar:`, {
+        nombrePaciente,
+        fechaInput,
+        fechaFormateada,
+        horaValor
+    });
+    
+    const esRecurrente = document.getElementById('terapiaRecurrente').checked;
+    
+    const formData = {
+        nombre_paciente: nombrePaciente,
+        fecha_inicio: fechaFormateada,
+        hora: horaValor,
+        edad: document.getElementById('terapiaEdad').value || null,
+        telefono: document.getElementById('terapiaTelefono').value || null,
+        notas: document.getElementById('terapiaNotas').value || '',
+        es_recurrente: esRecurrente
+    };
+    
+    const messageEl = document.getElementById('terapiaMessage');
+    messageEl.innerHTML = '<div style="color: #856404; background: #fff3cd; padding: 10px; border-radius: 5px;">Agendando terapia visual...</div>';
+    
     try {
+        console.log("📤 Enviando solicitud al servidor...");
+        
+        // ✅ CORRECCIÓN: Usar la ruta correcta para terapia visual
+        const response = await fetch(`${API_BASE_URL}/api/citas/agendar_terapia`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify(formData)
+        });
+        
+        console.log(`📡 Respuesta del servidor: ${response.status}`);
+        
+        const data = await response.json();
+        console.log("📨 Datos de respuesta:", data);
+        
+        if (response.ok) {
+            let mensajeExito = `✅ Terapia visual agendada exitosamente para ${formData.nombre_paciente}`;
+            
+            if (esRecurrente && data.total_citas) {
+                mensajeExito += `<br>📅 Se crearon ${data.total_citas} citas hasta el ${data.fecha_fin}`;
+            }
+            
+            messageEl.innerHTML = `<div style="color: #155724; background: #d4edda; padding: 10px; border-radius: 5px;">
+                ${mensajeExito}
+            </div>`;
+            
+            // Limpiar formulario
+            document.getElementById('terapiaVisualForm').reset();
+            
+            // Restaurar fecha actual
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('terapiaFecha').value = today;
+            
+            // Actualizar estadísticas y calendario
+            await loadCitas();
+            updateStats();
+            updateCalendar();
+            
+        } else {
+            console.error("❌ Error del servidor:", data);
+            messageEl.innerHTML = `<div style="color: #721c24; background: #f8d7da; padding: 10px; border-radius: 5px;">
+                ❌ Error: ${data.message || 'Error desconocido del servidor'}
+            </div>`;
+        }
+        
+    } catch (error) {
+        console.error('💥 Error de conexión:', error);
+        messageEl.innerHTML = `<div style="color: #721c24; background: #f8d7da; padding: 10px; border-radius: 5px;">
+            ❌ Error de conexión con el servidor: ${error.message}
+        </div>`;
+    }
+}
+
+async function initializeAdminPanel() {
+   try {
         console.log('🔧 Inicializando panel de administración...');
         
-        // Verificar autenticación primero
         const isAuthenticated = await checkAuth();
         if (!isAuthenticated) {
             console.log('❌ No autenticado, deteniendo inicialización');
@@ -26,7 +159,6 @@ async function initializeAdminPanel() {
         
         console.log('✅ Autenticación verificada, cargando datos...');
         
-        // Cargar citas y inicializar componentes
         await loadCitas();
         initializeEventListeners();
         updateCalendar();
@@ -34,6 +166,9 @@ async function initializeAdminPanel() {
         updateStats();
         updateScheduleForDate(new Date());
         updatePatientCardsForDate(new Date());
+        
+        // ⭐⭐ NUEVO: Inicializar formulario de terapia visual
+        setupTerapiaVisualForm();
         
         console.log('✅ Panel de administración inicializado correctamente');
         
@@ -123,6 +258,93 @@ function initializeEventListeners() {
     
     // Inicializar eventos de fechas del calendario
     initializeCalendarEvents();
+}
+
+function setupTerapiaVisualForm() {
+    const terapiaForm = document.getElementById('terapiaVisualForm');
+    if (!terapiaForm) return;
+    
+    // Establecer fecha mínima como hoy
+    const fechaInput = document.getElementById('terapiaFecha');
+    if (fechaInput) {
+        const today = new Date().toISOString().split('T')[0];
+        fechaInput.min = today;
+        fechaInput.value = today;
+    }
+}
+
+// ⭐⭐ MODIFICAR la función handleTerapiaVisualSubmit existente:
+async function handleTerapiaVisualSubmit(event) {
+    event.preventDefault();
+    
+    // ⭐⭐ NUEVO: Obtener el estado del checkbox
+    const recurrenteCheckbox = document.getElementById('terapiaRecurrente');
+    const esRecurrente = recurrenteCheckbox ? recurrenteCheckbox.checked : true; // Por defecto true
+    
+    const formData = {
+        nombre_paciente: document.getElementById('terapiaNombre').value,
+        fecha_inicio: document.getElementById('terapiaFecha').value, // ⭐⭐ CAMBIÉ de 'fecha' a 'fecha_inicio'
+        hora: document.getElementById('terapiaHora').value,
+        edad: document.getElementById('terapiaEdad').value || null,
+        telefono: document.getElementById('terapiaTelefono').value || null,
+        notas: document.getElementById('terapiaNotas').value || '',
+        es_recurrente: esRecurrente // ⭐⭐ NUEVO campo
+    };
+    
+    const messageEl = document.getElementById('terapiaMessage');
+    messageEl.innerHTML = '<div style="color: #856404; background: #fff3cd; padding: 10px; border-radius: 5px;">Agendando terapia visual...</div>';
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/citas/agendar_terapia`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify(formData)
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            let mensajeExito = `✅ Terapia visual agendada exitosamente para ${formData.nombre_paciente}`;
+            
+            // ⭐⭐ NUEVO: Mensaje específico para recurrencia
+            if (esRecurrente && data.total_citas) {
+                mensajeExito += `<br>📅 Se crearon ${data.total_citas} citas hasta el ${data.fecha_fin}`;
+            }
+            
+            messageEl.innerHTML = `<div style="color: #155724; background: #d4edda; padding: 10px; border-radius: 5px;">
+                ${mensajeExito}
+            </div>`;
+            
+            // Limpiar formulario
+            document.getElementById('terapiaVisualForm').reset();
+            
+            // Restaurar fecha actual
+            const fechaInput = document.getElementById('terapiaFecha');
+            if (fechaInput) {
+                const today = new Date().toISOString().split('T')[0];
+                fechaInput.value = today;
+            }
+            
+            // Actualizar estadísticas y calendario
+            await loadCitas();
+            updateStats();
+            updateCalendar();
+            
+        } else {
+            messageEl.innerHTML = `<div style="color: #721c24; background: #f8d7da; padding: 10px; border-radius: 5px;">
+                ❌ Error: ${data.message}
+            </div>`;
+        }
+        
+    } catch (error) {
+        console.error('Error agendando terapia visual:', error);
+        messageEl.innerHTML = `<div style="color: #721c24; background: #f8d7da; padding: 10px; border-radius: 5px;">
+            ❌ Error de conexión con el servidor
+        </div>`;
+    }
 }
 
 // ==================== FUNCIONES DE LA API CORREGIDAS ====================

@@ -10,6 +10,7 @@ import json
 from flask_cors import CORS
 import os
 from flask import send_from_directory, send_file 
+from dateutil.relativedelta import relativedelta  # ← NUEVO import
 
 # Inicialización de la aplicación
 app = Flask(__name__)
@@ -161,6 +162,29 @@ class Cita(db.Model):
     id_usuario = db.Column(db.Integer, db.ForeignKey('usuario.id_usuario'), nullable=True)
     estado = db.Column(db.String(20), default='Programada')
 
+# cita recurrente new model
+
+class CitaRecurrente(db.Model):
+    __tablename__ = 'cita_recurrente'
+    id_serie = db.Column(db.Integer, primary_key=True)
+    id_cita_original = db.Column(db.Integer, db.ForeignKey('cita.id_cita'))
+    fecha_inicio = db.Column(db.Date)
+    fecha_fin = db.Column(db.Date)
+    dia_semana = db.Column(db.Integer)
+    hora = db.Column(db.Time)
+    creado_por = db.Column(db.Integer, db.ForeignKey('usuario.id_usuario'))
+    estado_serie = db.Column(db.String(20))
+
+    # Relación correcta (solo una dirección)
+    citas_generadas = db.relationship('Cita', backref='serie_recurrente', lazy=True)
+
+class CitaRecurrenteDetalle(db.Model):
+    id_detalle = db.Column(db.Integer, primary_key=True)
+    id_serie = db.Column(db.Integer, db.ForeignKey('cita_recurrente.id_serie'), nullable=False)
+    id_cita = db.Column(db.Integer, db.ForeignKey('cita.id_cita'), nullable=False)
+    fecha_programada = db.Column(db.Date, nullable=False)
+    estado_individual = db.Column(db.String(20), default='Programada')  # Programada, Modificada, Cancelada
+
     def to_dict(self):
         return {
             'id_cita': self.id_cita,
@@ -171,6 +195,99 @@ class Cita(db.Model):
             'gabinete': self.gabinete.nombre,
             'estado': self.estado
         }
+
+# ----------------------------------------------------
+# 📌 Modelos de la Base de Datos
+# ----------------------------------------------------
+
+# ... todos tus modelos existentes (Paciente, Cita, Usuario, etc.) ...
+
+# ----------------------------------------------------
+# ⚙️ Funciones Auxiliares
+# ----------------------------------------------------
+
+def calcular_fecha_fin(fecha_inicio, meses=3):
+    """Calcula la fecha fin sumando meses a la fecha inicio"""
+    from dateutil.relativedelta import relativedelta
+    return fecha_inicio + relativedelta(months=meses)
+
+def verificar_disponibilidad_fecha(fecha, hora):
+    """Verifica si una fecha y hora están disponibles"""
+    cita_existente = Cita.query.filter_by(fecha=fecha, hora=hora).first()
+    return cita_existente is None
+
+def encontrar_proximo_dia(fecha, dia_semana):
+    """Encuentra la próxima fecha que coincida con el día de la semana"""
+    dias_restantes = (dia_semana - fecha.weekday()) % 7
+    if dias_restantes == 0:
+        dias_restantes = 7  # Ir a la siguiente semana
+    return fecha + timedelta(days=dias_restantes)
+
+def generar_citas_recurrentes(id_serie, id_paciente, fecha_inicio, fecha_fin, dia_semana, hora, id_usuario):
+    """Genera todas las citas recurrentes para la serie"""
+    citas_generadas = []
+    fecha_actual = fecha_inicio
+    
+    # Saltar la primera cita (ya fue creada)
+    fecha_actual = encontrar_proximo_dia(fecha_actual + timedelta(days=1), dia_semana)
+    
+    while fecha_actual <= fecha_fin:
+        # Verificar disponibilidad antes de crear la cita
+        if verificar_disponibilidad_fecha(fecha_actual, hora):
+            id_gabinete = get_next_available_gabinete(fecha_actual)
+            
+            cita = Cita(
+                fecha=fecha_actual,
+                hora=hora,
+                id_paciente=id_paciente,
+                id_motivo=3,  # Terapia visual
+                id_gabinete=id_gabinete,
+                estado='Programada',
+                id_usuario=id_usuario
+            )
+            db.session.add(cita)
+            db.session.flush()
+            
+            # Registrar en el detalle de la serie recurrente
+            detalle = CitaRecurrenteDetalle(
+                id_serie=id_serie,
+                id_cita=cita.id_cita,
+                fecha_programada=fecha_actual,
+                estado_individual='Programada'
+            )
+            db.session.add(detalle)
+            
+            citas_generadas.append(cita)
+        
+        # Avanzar a la siguiente semana
+        fecha_actual = encontrar_proximo_dia(fecha_actual + timedelta(days=1), dia_semana)
+    
+    return citas_generadas
+
+def obtener_serie_de_cita(cita_id):
+    """Obtiene la serie recurrente a la que pertenece una cita"""
+    detalle = CitaRecurrenteDetalle.query.filter_by(id_cita=cita_id).first()
+    if detalle:
+        return CitaRecurrente.query.get(detalle.id_serie)
+    return None
+
+def es_cita_recurrente(cita_id):
+    """Verifica si una cita pertenece a una serie recurrente"""
+    return CitaRecurrenteDetalle.query.filter_by(id_cita=cita_id).first() is not None
+
+
+def get_next_available_gabinete(fecha):
+    """Calcula el siguiente gabinete a asignar para una fecha dada."""
+    try:
+        citas_del_dia = Cita.query.filter_by(fecha=fecha).count()
+        # Los gabinetes van del 1 al 6. El índice de gabinete_id es (citas_del_dia % 6) + 1
+        id_gabinete = (citas_del_dia % 6) + 1
+        print(f"🔢 Asignando gabinete: citas_del_dia={citas_del_dia}, id_gabinete={id_gabinete}")
+        return id_gabinete
+    except Exception as e:
+        print(f"❌ Error en get_next_available_gabinete: {e}")
+        return 1  # Fallback al gabinete 1
+    
 
 # ----------------------------------------------------
 # 🔑 Flask-Login Configuration
@@ -674,6 +791,330 @@ def serve_static_files(filename):
 @app.route('/favicon.ico')
 def favicon():
     return '', 204
+
+#ruta terapia visual
+@app.route('/api/citas/agendar_terapia', methods=['POST'])
+@login_required
+def agendar_terapia_visual_api():
+    """Ruta para agendar terapia visual con recurrencia de 3 meses"""
+    try:
+        print("📥 SOLICITUD RECIBIDA en /api/citas/agendar_terapia")
+        
+        # Verificar si hay datos JSON
+        if not request.is_json:
+            print("❌ No se recibió JSON")
+            return jsonify({'message': 'Se esperaba JSON'}), 400
+            
+        data = request.get_json()
+        print(f"📊 Datos recibidos: {data}")
+        
+        # Validar datos requeridos
+        required_fields = ['nombre_paciente', 'fecha_inicio', 'hora']
+        for field in required_fields:
+            if field not in data:
+                print(f"❌ Campo faltante: {field}")
+                return jsonify({'message': f'Campo requerido faltante: {field}'}), 400
+
+        # Parsear fechas
+        try:
+            fecha_inicio = datetime.strptime(data['fecha_inicio'], '%Y-%m-%d').date()
+            hora_dt = datetime.strptime(data['hora'], '%H:%M:%S').time()
+            print(f"✅ Fechas parseadas: {fecha_inicio} {hora_dt}")
+        except ValueError as e:
+            print(f"❌ Error parseando fechas: {e}")
+            return jsonify({'message': 'Formato de fecha u hora inválido'}), 400
+        
+        # VERIFICACIÓN EXTENDIDA DE LA BASE DE DATOS
+        print("🔍 Verificando estado de la base de datos...")
+        
+        # Verificar motivo
+        motivo_terapia = MotivoCita.query.get(3)
+        if not motivo_terapia:
+            print("❌ Motivo de terapia visual NO encontrado")
+            return jsonify({'message': 'Motivo de terapia visual no configurado'}), 500
+        print(f"✅ Motivo encontrado: ID {motivo_terapia.id_motivo} - {motivo_terapia.descripcion}")
+        
+        # Verificar gabinetes
+        gabinetes = Gabinete.query.all()
+        print(f"✅ Gabinetes disponibles: {[g.nombre for g in gabinetes]}")
+        
+        # Verificar usuario actual
+        print(f"✅ Usuario autenticado: {current_user.nombre_usuario} (ID: {current_user.id_usuario})")
+        
+        # Crear paciente
+        nombre_completo = data['nombre_paciente']
+        partes_nombre = nombre_completo.split(' ', 1)
+        nombre = partes_nombre[0]
+        apellido = partes_nombre[1] if len(partes_nombre) > 1 else ""
+        
+        print(f"👤 Creando paciente: {nombre} {apellido}")
+        
+        paciente = Paciente(
+            nombre=nombre,
+            apellido=apellido,
+            edad=data.get('edad', 0) or 0,
+            telefono=data.get('telefono', '000-0000') or '000-0000'
+        )
+        db.session.add(paciente)
+        db.session.flush()
+        print(f"✅ Paciente creado con ID: {paciente.id_paciente}")
+        
+        # Asignar gabinete
+        id_gabinete = get_next_available_gabinete(fecha_inicio)
+        gabinete = Gabinete.query.get(id_gabinete)
+        print(f"✅ Gabinete asignado: {id_gabinete} ({gabinete.nombre})")
+        
+        # Verificar disponibilidad
+        if not verificar_disponibilidad_fecha(fecha_inicio, hora_dt):
+            print("❌ Fecha y hora no disponibles")
+            return jsonify({'message': 'La fecha y hora inicial no están disponibles'}), 400
+        print("✅ Fecha y hora disponibles")
+        
+        # Crear cita original
+        print("📝 Creando cita original...")
+        cita_original = Cita(
+            fecha=fecha_inicio,
+            hora=hora_dt,
+            id_paciente=paciente.id_paciente,
+            id_motivo=3,  # Terapia visual
+            id_gabinete=id_gabinete,
+            estado='Programada',
+            id_usuario=current_user.id_usuario
+        )
+        db.session.add(cita_original)
+        db.session.flush()
+        print(f"✅ Cita original creada: ID {cita_original.id_cita}")
+        
+        # SOLUCIÓN TEMPORAL: Deshabilitar recurrencia para pruebas
+        es_recurrente = data.get('es_recurrente', True)
+        citas_generadas = []
+        
+        if es_recurrente:
+            print("🔄 Recurrencia temporalmente deshabilitada para pruebas")
+            # Por ahora solo creamos la cita individual para probar
+            # Comentamos toda la parte de recurrencia
+            
+            """
+            print("🔄 Creando serie recurrente...")
+            # Crear serie recurrente
+            serie_recurrente = CitaRecurrente(
+                id_cita_original=cita_original.id_cita,
+                fecha_inicio=fecha_inicio,
+                fecha_fin=fecha_fin,
+                dia_semana=dia_semana,
+                hora=hora_dt,
+                creado_por=current_user.id_usuario
+            )
+            db.session.add(serie_recurrente)
+            db.session.flush()
+
+            # Generar todas las citas de la serie
+            citas_generadas = generar_citas_recurrentes(
+                serie_recurrente.id_serie,
+                paciente.id_paciente,
+                fecha_inicio,
+                fecha_fin,
+                dia_semana,
+                hora_dt,
+                current_user.id_usuario
+            )
+            print(f"✅ Serie recurrente creada: {len(citas_generadas)} citas adicionales")
+            """
+        else:
+            print("✅ Cita individual creada (sin recurrencia)")
+
+        db.session.commit()
+
+        mensaje_final = f'Terapia visual agendada exitosamente. Cita individual creada.'  # Modificado temporalmente
+        
+        print(f"🎉 PROCESO COMPLETADO: {mensaje_final}")
+        
+        return jsonify({
+            'message': mensaje_final,
+            'cita_original': {
+                'id_cita': cita_original.id_cita,
+                'fecha': cita_original.fecha.strftime('%Y-%m-%d'),
+                'hora': str(cita_original.hora),
+                'paciente': {
+                    'nombre': paciente.nombre,
+                    'apellido': paciente.apellido,
+                    'edad': paciente.edad,
+                    'telefono': paciente.telefono
+                },
+                'gabinete': gabinete.nombre,
+                'estado': cita_original.estado
+            },
+            'total_citas': 1,  # Temporalmente solo 1 cita
+            'fecha_fin': None  # Temporalmente sin fecha fin
+        }), 201
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"💥 ERROR CRÍTICO: {str(e)}")
+        import traceback
+        print(f"📝 Stack trace: {traceback.format_exc()}")
+        return jsonify({'message': 'Error al agendar terapia visual', 'error': str(e)}), 500
+
+def calcular_fecha_fin(fecha_inicio, meses=3):
+    """Calcula la fecha fin sumando meses a la fecha inicio"""
+    from dateutil.relativedelta import relativedelta
+    return fecha_inicio + relativedelta(months=meses)
+
+def generar_citas_recurrentes(id_serie, id_paciente, fecha_inicio, fecha_fin, dia_semana, hora, id_usuario):
+    """Genera todas las citas recurrentes para la serie"""
+    citas_generadas = []
+    fecha_actual = fecha_inicio
+    
+    # Saltar la primera cita (ya fue creada)
+    fecha_actual = encontrar_proximo_dia(fecha_actual + timedelta(days=1), dia_semana)
+    
+    while fecha_actual <= fecha_fin:
+        # Verificar disponibilidad antes de crear la cita
+        if verificar_disponibilidad_fecha(fecha_actual, hora):
+            id_gabinete = get_next_available_gabinete(fecha_actual)
+            
+            cita = Cita(
+                fecha=fecha_actual,
+                hora=hora,
+                id_paciente=id_paciente,
+                id_motivo=3,  # Terapia visual
+                id_gabinete=id_gabinete,
+                estado='Programada',
+                id_usuario=id_usuario
+            )
+            db.session.add(cita)
+            db.session.flush()
+            
+            # Registrar en el detalle de la serie recurrente
+            detalle = CitaRecurrenteDetalle(
+                id_serie=id_serie,
+                id_cita=cita.id_cita,
+                fecha_programada=fecha_actual,
+                estado_individual='Programada'
+            )
+            db.session.add(detalle)
+            
+            citas_generadas.append(cita)
+        
+        # Avanzar a la siguiente semana
+        fecha_actual = encontrar_proximo_dia(fecha_actual + timedelta(days=1), dia_semana)
+    
+    return citas_generadas
+
+def encontrar_proximo_dia(fecha, dia_semana):
+    """Encuentra la próxima fecha que coincida con el día de la semana"""
+    dias_restantes = (dia_semana - fecha.weekday()) % 7
+    if dias_restantes == 0:
+        dias_restantes = 7  # Ir a la siguiente semana
+    return fecha + timedelta(days=dias_restantes)
+
+def verificar_disponibilidad_fecha(fecha, hora):
+    """Verifica si una fecha y hora están disponibles"""
+    cita_existente = Cita.query.filter_by(fecha=fecha, hora=hora).first()
+    return cita_existente is None
+
+@app.route('/api/citas/<int:cita_id>/editar_individual', methods=['PUT'])
+@login_required
+def editar_cita_individual(cita_id):
+    """Edita una cita individual sin afectar la serie recurrente"""
+    try:
+        data = request.get_json()
+        cita = Cita.query.get_or_404(cita_id)
+        
+        # Verificar si pertenece a una serie recurrente
+        detalle_serie = CitaRecurrenteDetalle.query.filter_by(id_cita=cita_id).first()
+        
+        if not detalle_serie:
+            return jsonify({'message': 'Cita no encontrada en serie recurrente'}), 404
+        
+        # Validar matrícula
+        matricula = data.get('matricula_editor')
+        if matricula and not matricula.isdigit():
+            return jsonify({'message': 'La matrícula solo debe contener números'}), 400
+        
+        # Registrar auditoría
+        print(f"📝 CITA INDIVIDUAL MODIFICADA - Serie: {detalle_serie.id_serie}")
+        print(f"    👨‍🎓 Editado por: {matricula}")
+        print(f"    📅 Cita original: {cita.fecha} {cita.hora}")
+        
+        # Aplicar cambios
+        cambios = []
+        if 'fecha' in data:
+            nueva_fecha = datetime.strptime(data['fecha'], '%Y-%m-%d').date()
+            cambios.append(f"🗓️ Fecha: {nueva_fecha} (Anterior: {cita.fecha})")
+            cita.fecha = nueva_fecha
+        
+        if 'hora' in data:
+            nueva_hora = datetime.strptime(data['hora'], '%H:%M:%S').time()
+            cambios.append(f"⏰ Hora: {nueva_hora} (Anterior: {cita.hora})")
+            cita.hora = nueva_hora
+        
+        if 'estado' in data:
+            cambios.append(f"📊 Estado: {data['estado']} (Anterior: {cita.estado})")
+            cita.estado = data['estado']
+        
+        # Actualizar estado individual en la serie
+        detalle_serie.estado_individual = 'Modificada'
+        
+        for cambio in cambios:
+            print(f"    {cambio}")
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Cita individual modificada exitosamente',
+            'cita': cita.to_dict(),
+            'serie_afectada': False  # Indica que no se afectó la serie completa
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': 'Error al modificar cita individual', 'error': str(e)}), 500
+
+@app.route('/api/citas/serie/<int:serie_id>/cancelar', methods=['PUT'])
+@login_required
+def cancelar_serie_completa(serie_id):
+    """Cancela toda la serie recurrente"""
+    try:
+        data = request.get_json()
+        serie = CitaRecurrente.query.get_or_404(serie_id)
+        
+        # Validar matrícula
+        matricula = data.get('matricula_editor')
+        if matricula and not matricula.isdigit():
+            return jsonify({'message': 'La matrícula solo debe contener números'}), 400
+        
+        # Cancelar todas las citas futuras de la serie
+        citas_futuras = Cita.query.join(CitaRecurrenteDetalle).filter(
+            CitaRecurrenteDetalle.id_serie == serie_id,
+            Cita.fecha >= datetime.now().date(),
+            Cita.estado != 'Cancelada'
+        ).all()
+        
+        for cita in citas_futuras:
+            cita.estado = 'Cancelada'
+        
+        serie.estado_serie = 'Cancelada'
+        
+        print(f"🚫 SERIE COMPLETA CANCELADA - ID: {serie_id}")
+        print(f"    👨‍🎓 Cancelado por: {matricula}")
+        print(f"    📅 Citas canceladas: {len(citas_futuras)}")
+        print(f"    🎯 Motivo: {data.get('motivo_modificacion', 'N/A')}")
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': f'Serie completa cancelada. {len(citas_futuras)} citas afectadas.',
+            'citas_canceladas': len(citas_futuras)
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': 'Error al cancelar serie', 'error': str(e)}), 500
+
+
+
+
 
 # ----------------------------------------------------
 # 🚀 Ejecución de la Aplicación

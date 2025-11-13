@@ -36,3 +36,9 @@ class Config:
     HORARIOS_ATENCION = [
         '12:30:00', '13:30:00', '14:30:00', '15:30:00'
     ]
+
+MOTIVOS_CITA = [
+    {'id': 1, 'descripcion': 'Lentes graduados de armazón'},
+    {'id': 2, 'descripcion': 'Lentes de contacto'},
+    {'id': 3, 'descripcion': 'Terapia visual'},  # NUEVO SERVICIO
+]
