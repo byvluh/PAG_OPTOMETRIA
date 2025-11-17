@@ -11,6 +11,12 @@ let allCitas = [];
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 Iniciando panel de administración...');
     initializeAdminPanel();
+    
+    // Asignar evento al formulario de terapia visual
+    const terapiaForm = document.getElementById('terapiaVisualForm');
+    if (terapiaForm) {
+        terapiaForm.addEventListener('submit', handleTerapiaVisualSubmit);
+    }
 });
 
 // funcion de navegacion
@@ -27,27 +33,12 @@ function showSection(sectionName) {
     
     // Mostrar sección seleccionada y activar botón
     document.getElementById(sectionName + 'Section').style.display = 'block';
-    event.target.classList.add('active');
+    // Determinar qué botón fue clickeado (mejorado)
+    const clickedButton = Array.from(document.querySelectorAll('.nav-btn')).find(btn => btn.textContent.toLowerCase().includes(sectionName.toLowerCase()));
+    if(clickedButton) {
+        clickedButton.classList.add('active');
+    }
 }
-
-// Agregar función para manejar el formulario de terapia visual
-document.addEventListener('DOMContentLoaded', function() {
-    // ... código existente ...
-    
-    // Agregar event listener para el formulario de terapia visual
-    const terapiaForm = document.getElementById('terapiaVisualForm');
-    if (terapiaForm) {
-        terapiaForm.addEventListener('submit', handleTerapiaVisualSubmit);
-    }
-    
-    // Establecer fecha mínima como hoy
-    const fechaInput = document.getElementById('terapiaFecha');
-    if (fechaInput) {
-        const today = new Date().toISOString().split('T')[0];
-        fechaInput.min = today;
-        fechaInput.value = today;
-    }
-});
 
 async function handleTerapiaVisualSubmit(event) {
     event.preventDefault();
@@ -76,7 +67,8 @@ async function handleTerapiaVisualSubmit(event) {
         horaValor
     });
     
-    const esRecurrente = document.getElementById('terapiaRecurrente').checked;
+    const recurrenteCheckbox = document.getElementById('terapiaRecurrente');
+    const esRecurrente = recurrenteCheckbox ? recurrenteCheckbox.checked : true;
     
     const formData = {
         nombre_paciente: nombrePaciente,
@@ -125,7 +117,8 @@ async function handleTerapiaVisualSubmit(event) {
             
             // Restaurar fecha actual
             const today = new Date().toISOString().split('T')[0];
-            document.getElementById('terapiaFecha').value = today;
+            const fechaInputEl = document.getElementById('terapiaFecha');
+            if (fechaInputEl) fechaInputEl.value = today;
             
             // Actualizar estadísticas y calendario
             await loadCitas();
@@ -161,20 +154,32 @@ async function initializeAdminPanel() {
         
         await loadCitas();
         initializeEventListeners();
-        updateCalendar();
-        updateSelectedDate(new Date());
-        updateStats();
-        updateScheduleForDate(new Date());
-        updatePatientCardsForDate(new Date());
         
-        // ⭐⭐ NUEVO: Inicializar formulario de terapia visual
+        // ⭐ LLAMADA CRÍTICA: Renderiza la cuadrícula y actualiza el encabezado
+        updateCalendar(); 
+        
+        const today = new Date();
+        const todayString = today.toISOString().split('T')[0];
+        
+        // Seleccionar la fecha de hoy por defecto si está visible
+        selectedCalendarDate = today;
+        const todayElement = document.querySelector(`.calendar-date[data-date="${todayString}"]`);
+        if(todayElement) {
+             todayElement.classList.add('selected');
+        } 
+        
+        updateSelectedDate(selectedCalendarDate);
+        updateStats();
+        updateScheduleForDate(selectedCalendarDate);
+        updatePatientCardsForDate(selectedCalendarDate);
+        
         setupTerapiaVisualForm();
         
         console.log('✅ Panel de administración inicializado correctamente');
         
     } catch (error) {
         console.error('❌ Error inicializando panel:', error);
-        alert('Error al cargar los datos del panel de administración: ' + error.message);
+        // Evitamos alertar dos veces si checkAuth ya redirigió
     }
 }
 
@@ -244,7 +249,7 @@ function initializeEventListeners() {
     document.getElementById('next-month').addEventListener('click', nextMonth);
     
     // Cerrar modal
-    document.querySelector('.close').addEventListener('click', closeModal);
+    document.querySelector('#appointment-modal .close').addEventListener('click', closeModal);
     window.addEventListener('click', function(event) {
         if (event.target === document.getElementById('appointment-modal')) {
             closeModal();
@@ -257,7 +262,7 @@ function initializeEventListeners() {
     document.querySelector('.modal-actions .btn-danger').addEventListener('click', cancelAppointment);
     
     // Inicializar eventos de fechas del calendario
-    initializeCalendarEvents();
+    // Nota: El binding de eventos se hace dentro de renderCalendarGrid
 }
 
 function setupTerapiaVisualForm() {
@@ -273,79 +278,7 @@ function setupTerapiaVisualForm() {
     }
 }
 
-// ⭐⭐ MODIFICAR la función handleTerapiaVisualSubmit existente:
-async function handleTerapiaVisualSubmit(event) {
-    event.preventDefault();
-    
-    // ⭐⭐ NUEVO: Obtener el estado del checkbox
-    const recurrenteCheckbox = document.getElementById('terapiaRecurrente');
-    const esRecurrente = recurrenteCheckbox ? recurrenteCheckbox.checked : true; // Por defecto true
-    
-    const formData = {
-        nombre_paciente: document.getElementById('terapiaNombre').value,
-        fecha_inicio: document.getElementById('terapiaFecha').value, // ⭐⭐ CAMBIÉ de 'fecha' a 'fecha_inicio'
-        hora: document.getElementById('terapiaHora').value,
-        edad: document.getElementById('terapiaEdad').value || null,
-        telefono: document.getElementById('terapiaTelefono').value || null,
-        notas: document.getElementById('terapiaNotas').value || '',
-        es_recurrente: esRecurrente // ⭐⭐ NUEVO campo
-    };
-    
-    const messageEl = document.getElementById('terapiaMessage');
-    messageEl.innerHTML = '<div style="color: #856404; background: #fff3cd; padding: 10px; border-radius: 5px;">Agendando terapia visual...</div>';
-    
-    try {
-        const response = await fetch(`${API_BASE_URL}/api/citas/agendar_terapia`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            credentials: 'include',
-            body: JSON.stringify(formData)
-        });
-        
-        const data = await response.json();
-        
-        if (response.ok) {
-            let mensajeExito = `✅ Terapia visual agendada exitosamente para ${formData.nombre_paciente}`;
-            
-            // ⭐⭐ NUEVO: Mensaje específico para recurrencia
-            if (esRecurrente && data.total_citas) {
-                mensajeExito += `<br>📅 Se crearon ${data.total_citas} citas hasta el ${data.fecha_fin}`;
-            }
-            
-            messageEl.innerHTML = `<div style="color: #155724; background: #d4edda; padding: 10px; border-radius: 5px;">
-                ${mensajeExito}
-            </div>`;
-            
-            // Limpiar formulario
-            document.getElementById('terapiaVisualForm').reset();
-            
-            // Restaurar fecha actual
-            const fechaInput = document.getElementById('terapiaFecha');
-            if (fechaInput) {
-                const today = new Date().toISOString().split('T')[0];
-                fechaInput.value = today;
-            }
-            
-            // Actualizar estadísticas y calendario
-            await loadCitas();
-            updateStats();
-            updateCalendar();
-            
-        } else {
-            messageEl.innerHTML = `<div style="color: #721c24; background: #f8d7da; padding: 10px; border-radius: 5px;">
-                ❌ Error: ${data.message}
-            </div>`;
-        }
-        
-    } catch (error) {
-        console.error('Error agendando terapia visual:', error);
-        messageEl.innerHTML = `<div style="color: #721c24; background: #f8d7da; padding: 10px; border-radius: 5px;">
-            ❌ Error de conexión con el servidor
-        </div>`;
-    }
-}
+// ⭐⭐ NO MODIFICAR: La lógica de handleTerapiaVisualSubmit se movió al inicio
 
 // ==================== FUNCIONES DE LA API CORREGIDAS ====================
 
@@ -420,6 +353,7 @@ async function updateAppointmentStatus(citaId, nuevoEstado) {
         
         if (response.ok) {
             await loadCitas(); // Recargar datos
+            updateCalendar(); // Vuelve a dibujar el calendario con los nuevos puntos
             updateScheduleForDate(selectedCalendarDate || new Date());
             updatePatientCardsForDate(selectedCalendarDate || new Date());
             updateStats();
@@ -435,7 +369,7 @@ async function updateAppointmentStatus(citaId, nuevoEstado) {
     }
 }
 
-// ==================== FUNCIONALIDAD DEL CALENDARIO ====================
+// ==================== FUNCIONALIDAD DEL CALENDARIO CORREGIDA ====================
 
 function previousMonth() {
     currentDate.setMonth(currentDate.getMonth() - 1);
@@ -454,8 +388,40 @@ function updateCalendar() {
     
     monthYearElement.textContent = `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
     
-    // Marcar días con citas
+    // ⭐ LLAMADA CRÍTICA: DIBUJAR LA CUADRÍCULA CON LAS FECHAS CORRECTAS
+    renderCalendarGrid(); 
+    
+    // Marcar días con citas (debe ir DESPUÉS de renderizar la cuadrícula)
     markDaysWithAppointments();
+    
+    // Re-seleccionar el día si está visible
+    if (selectedCalendarDate && 
+        selectedCalendarDate.getMonth() === currentDate.getMonth() && 
+        selectedCalendarDate.getFullYear() === currentDate.getFullYear()) {
+            
+        // Formato para buscar el elemento: YYYY-MM-DD
+        const dateString = selectedCalendarDate.toISOString().split('T')[0];
+        const dayElement = document.querySelector(`.calendar-date[data-date="${dateString}"]`);
+        if (dayElement) {
+            // Asegurar que solo el día actual tenga la clase 'selected'
+            document.querySelectorAll('.calendar-date').forEach(d => d.classList.remove('selected'));
+            dayElement.classList.add('selected');
+        }
+    } else {
+        // Si cambiamos de mes, actualizamos la vista para el día 1
+        const dayOne = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+        selectedCalendarDate = dayOne;
+        updateSelectedDate(selectedCalendarDate);
+        updateScheduleForDate(selectedCalendarDate);
+        updatePatientCardsForDate(selectedCalendarDate);
+        
+        // Seleccionar el día 1 en el calendario
+        const dayElement = document.querySelector('.calendar-date[data-day="1"]:not(.other-month)');
+        if(dayElement) {
+            document.querySelectorAll('.calendar-date').forEach(d => d.classList.remove('selected'));
+            dayElement.classList.add('selected');
+        }
+    }
 }
 
 function markDaysWithAppointments() {
@@ -474,8 +440,6 @@ function markDaysWithAppointments() {
         // La fecha viene como "YYYY-MM-DD" desde la API (string)
         if (!cita.fecha) return;
 
-        // Desglosamos la fecha string para evitar conversiones de zona horaria
-        // Ejemplo: "2025-11-19" -> parts[0]=2025, parts[1]=11, parts[2]=19
         const parts = cita.fecha.split('-'); 
         const citaYear = parseInt(parts[0]);
         const citaMonth = parseInt(parts[1]) - 1; // Restamos 1 porque en JS los meses son 0-11
@@ -483,47 +447,51 @@ function markDaysWithAppointments() {
 
         // Comparamos si la cita pertenece al mes y año que estamos viendo
         if (citaYear === currentYear && citaMonth === currentMonth) {
-            const dayElements = document.querySelectorAll('.calendar-date:not(.other-month)');
+            // Buscar por el atributo de fecha (la forma más segura después de renderizar)
+            const dateString = cita.fecha;
+            const dayElement = document.querySelector(`.calendar-date[data-date="${dateString}"]`);
             
-            dayElements.forEach(dayElement => {
-                const dayNumber = parseInt(dayElement.textContent);
-                if (dayNumber === citaDay) {
-                    dayElement.classList.add('has-appointments');
-                }
-            });
+            if (dayElement) {
+                dayElement.classList.add('has-appointments');
+            }
         }
     });
 }
 function initializeCalendarEvents() {
     // Re-bindear eventos al actualizar el calendario
+    // Solo necesitamos los días del mes actual
     const calendarDates = document.querySelectorAll('.calendar-grid .calendar-date:not(.other-month)');
     calendarDates.forEach(date => {
-        // Evitar múltiples listeners
-        date.removeEventListener('click', handleDateSelection); 
-        date.addEventListener('click', function() {
-            handleDateSelection(this);
-        });
+        // Eliminar listeners antiguos para evitar duplicados
+        date.removeEventListener('click', handleDateSelectionWrapper); 
+        // Usar un wrapper para poder usar removeEventListener si fuera necesario
+        date.addEventListener('click', handleDateSelectionWrapper);
     });
 }
 
+function handleDateSelectionWrapper() {
+    handleDateSelection(this);
+}
+
 function handleDateSelection(dateElement) {
-    // 1. Obtener el día clicado
-    const selectedDay = parseInt(dateElement.textContent);
+    // 1. Obtener la fecha completa del atributo de datos
+    const dateString = dateElement.getAttribute('data-date');
+    if (!dateString) return;
     
-    // 2. Crear la fecha (sin restar zonas horarias)
-    selectedCalendarDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), selectedDay);
+    // Crear la fecha (sin restar zonas horarias)
+    const parts = dateString.split('-');
+    // Month is 0-indexed in Date constructor, so parse[1] - 1
+    selectedCalendarDate = new Date(parts[0], parts[1] - 1, parts[2]); 
     
-    // 3. Limpieza visual: Quitamos SOLO la clase 'selected' de los otros días
+    // 2. Limpieza visual: Quitamos SOLO la clase 'selected' de los otros días
     document.querySelectorAll('.calendar-date').forEach(date => {
         date.classList.remove('selected'); 
-        // ¡IMPORTANTE! NO hacemos remove('has-appointments') aquí.
-        // El punto rojo se queda donde estaba.
     });
     
-    // 4. Añadimos la clase 'selected' al nuevo día
+    // 3. Añadimos la clase 'selected' al nuevo día
     dateElement.classList.add('selected');
     
-    // 5. Actualizar el resto del panel
+    // 4. Actualizar el resto del panel
     updateSelectedDate(selectedCalendarDate);
     updateScheduleForDate(selectedCalendarDate);
     updatePatientCardsForDate(selectedCalendarDate);
@@ -555,12 +523,17 @@ function updateScheduleForDate(date) {
     tableCells.forEach(cell => {
         if (!cell.classList.contains('time-slot')) {
             cell.innerHTML = 'Disponible';
-            cell.classList.remove('has-appointment', 'completed', 'cancelled');
+            cell.classList.remove('has-appointment', 'completed', 'cancelled', 'programada', 'no-asistió');
+            // Quitar listeners (limpieza importante)
+            const oldAppointment = cell.querySelector('.appointment');
+            if(oldAppointment) oldAppointment.removeEventListener('click', showAppointmentDetails);
         }
     });
     
     // Llenar tabla con citas del día
     citasDelDia.forEach(cita => {
+        if (!cita.hora) return;
+
         const hora = cita.hora.substring(0, 5);
         // Extraer número de gabinete (ej: "Gabinete 3" -> 3)
         const gabineteMatch = cita.gabinete.match(/\d+/);
@@ -572,11 +545,13 @@ function updateScheduleForDate(date) {
                 const gabineteCell = timeSlotRow.cells[gabineteNum];
                 if (gabineteCell) { // Asegurar que la celda existe
                     gabineteCell.innerHTML = createAppointmentHTML(cita);
-                    gabineteCell.classList.add('has-appointment', cita.estado.toLowerCase().replace(' ', '-'));
+                    const statusClass = cita.estado.toLowerCase().replace(' ', '-');
+                    gabineteCell.classList.add('has-appointment', statusClass);
                     
                     // Agregar event listener
                     const appointmentElement = gabineteCell.querySelector('.appointment');
                     if (appointmentElement) {
+                        // Usar una función anónima para pasar la cita, evitando problemas con re-binding
                         appointmentElement.addEventListener('click', () => showAppointmentDetails(cita));
                     }
                 }
@@ -589,8 +564,9 @@ function findTimeSlotRow(hora) {
     const rows = document.querySelectorAll('.schedule-table tbody tr');
     for (let row of rows) {
         const timeCell = row.cells[0];
-        const rowTime = timeCell.textContent.match(/\d{2}:\d{2}/);
-        if (rowTime && rowTime[0] === hora) {
+        // Quita el símbolo y recorta a 5 caracteres (ej: "☐ 12:30" -> "12:30")
+        const rowTime = timeCell.textContent.trim().substring(2).trim().substring(0, 5); 
+        if (rowTime === hora) {
             return row;
         }
     }
@@ -632,7 +608,8 @@ function updatePatientCardsForDate(date) {
     citasDelDia.forEach(cita => {
         const card = document.createElement('div');
         card.className = 'patient-card';
-        card.classList.add(cita.estado.toLowerCase().replace(' ', '-')); // Añadir clase de estado
+        const statusClass = cita.estado.toLowerCase().replace(' ', '-');
+        card.classList.add(statusClass); // Añadir clase de estado
         card.innerHTML = createPatientCardHTML(cita);
         card.addEventListener('click', () => showAppointmentDetails(cita));
         container.appendChild(card);
@@ -683,9 +660,9 @@ function showAppointmentDetails(cita) {
 }
 
 function getAdditionalNotes(cita) {
-    if (cita.motivo.toLowerCase().includes('armazón')) {
+    if (cita.motivo && cita.motivo.toLowerCase().includes('armazón')) {
         return 'Paciente requiere examen completo para lentes de armazón.';
-    } else if (cita.motivo.toLowerCase().includes('contacto')) {
+    } else if (cita.motivo && cita.motivo.toLowerCase().includes('contacto')) {
         return 'Paciente interesado en lentes de contacto. Evaluar adaptación.';
     }
     return 'Examen de rutina. Verificar agudeza visual y salud ocular.';
@@ -714,8 +691,6 @@ function editAppointment() {
     
     showEditModal(cita); // Abrir modal de edición con los datos
 }
-
-// Se elimina openEditModal ya que los datos ya están en allCitas
 
 function showEditModal(cita) {
     console.log("📝 Abriendo modal de edición para cita:", cita);
@@ -969,6 +944,7 @@ async function handleEditFormSubmit(event) {
             
             // Recargar datos
             await loadCitas();
+            updateCalendar(); // Vuelve a dibujar el calendario con los nuevos puntos
             updateScheduleForDate(selectedCalendarDate || new Date());
             updatePatientCardsForDate(selectedCalendarDate || new Date());
             updateStats();
@@ -1063,7 +1039,7 @@ function updateStats() {
     }
 }
 
-// ==================== FUNCIONES UTILITARIAS ====================
+// ==================== FUNCIONES UTILITARIAS Y DEBUG ====================
 
 function getStatusClass(estado) {
     if (!estado) return '';
@@ -1130,14 +1106,13 @@ function getDemoCitas() {
     ];
 }
 
-//arreglo del calendario, ver como optimizar el codigo ya existente en base a este bloque nuevo
+// Función para generar la cuadrícula del calendario dinámicamente
 function renderCalendarGrid() {
     const grid = document.querySelector('.calendar-grid');
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
 
-    // 1. Limpiar la cuadrícula (pero guardar los encabezados si están dentro)
-    // O mejor: Reconstruimos todo para asegurar limpieza.
+    // 1. Limpiar la cuadrícula, dejando solo los encabezados
     grid.innerHTML = `
         <div class="calendar-day">Dom</div>
         <div class="calendar-day">Lun</div>
@@ -1162,26 +1137,35 @@ function renderCalendarGrid() {
     }
 
     // 4. Días del mes actual
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
     for (let i = 1; i <= lastDay; i++) {
         const dayDiv = document.createElement('div');
-        dayDiv.classList.add('calendar-date');
         dayDiv.textContent = i;
+        dayDiv.classList.add('calendar-date');
         
-        // Si es hoy, marcarlo (opcional)
-        const today = new Date();
-        if (i === today.getDate() && month === today.getMonth() && year === today.getFullYear()) {
-            dayDiv.classList.add('today'); // Puedes añadir estilo CSS para .today si quieres
+        // Crear la fecha del día para comparación y data-attribute
+        const dayDate = new Date(year, month, i);
+        const dateString = dayDate.toISOString().split('T')[0];
+        
+        // Añadir data attributes para facilitar la selección y marcado de citas
+        dayDiv.setAttribute('data-day', i);
+        dayDiv.setAttribute('data-date', dateString);
+        
+        // Si es hoy, marcarlo
+        if (dayDate.setHours(0, 0, 0, 0) === today.getTime()) {
+            dayDiv.classList.add('today'); 
         }
 
         grid.appendChild(dayDiv);
     }
 
     // 5. Días del mes siguiente (Relleno final para completar cuadrícula)
-    // Calculamos cuántos cuadros faltan para llenar filas completas (usualmente 35 o 42 celdas total)
     const totalCellsSoFar = firstDayIndex + lastDay;
-    const nextDays = 42 - totalCellsSoFar; // Usamos 42 para asegurar 6 filas siempre
+    const cellsToFill = 42 - totalCellsSoFar; 
 
-    for (let j = 1; j <= nextDays; j++) {
+    for (let j = 1; j <= cellsToFill; j++) {
         const dayDiv = document.createElement('div');
         dayDiv.classList.add('calendar-date', 'other-month');
         dayDiv.textContent = j;

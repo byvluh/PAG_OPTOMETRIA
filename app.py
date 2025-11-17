@@ -10,7 +10,7 @@ import json
 from flask_cors import CORS
 import os
 from flask import send_from_directory, send_file 
-from dateutil.relativedelta import relativedelta  # ← NUEVO import
+from dateutil.relativedelta import relativedelta
 
 # Inicialización de la aplicación
 app = Flask(__name__)
@@ -162,6 +162,19 @@ class Cita(db.Model):
     id_usuario = db.Column(db.Integer, db.ForeignKey('usuario.id_usuario'), nullable=True)
     estado = db.Column(db.String(20), default='Programada')
     
+    def to_dict(self):
+        return {
+            'id_cita': self.id_cita,
+            'fecha': self.fecha.strftime('%Y-%m-%d'),
+            'hora': str(self.hora),
+            'id_paciente': self.id_paciente,
+            'id_motivo': self.id_motivo,
+            'id_gabinete': self.id_gabinete,
+            'estado': self.estado,
+            'paciente': self.paciente.to_dict() if self.paciente else None,
+            'motivo': self.motivo.descripcion if self.motivo else 'N/A',
+            'gabinete': self.gabinete.nombre if self.gabinete else 'N/A'
+        }
 
 # cita recurrente new model
 
@@ -189,19 +202,9 @@ class CitaRecurrenteDetalle(db.Model):
     def to_dict(self):
         return {
             'id_cita': self.id_cita,
-            'fecha': self.fecha.strftime('%Y-%m-%d'),
-            'hora': str(self.hora),
-            'paciente': self.paciente.to_dict(),
-            'motivo': self.motivo.descripcion,
-            'gabinete': self.gabinete.nombre,
-            'estado': self.estado
+            'fecha': self.fecha_programada.strftime('%Y-%m-%d'),
+            'estado': self.estado_individual
         }
-
-# ----------------------------------------------------
-# 📌 Modelos de la Base de Datos
-# ----------------------------------------------------
-
-# ... todos tus modelos existentes (Paciente, Cita, Usuario, etc.) ...
 
 # ----------------------------------------------------
 # ⚙️ Funciones Auxiliares
@@ -225,54 +228,47 @@ def encontrar_proximo_dia(fecha, dia_semana):
     return fecha + timedelta(days=dias_restantes)
 
 def generar_citas_recurrentes(id_serie, id_paciente, fecha_inicio, fecha_fin, dia_semana, hora, id_usuario):
-    """Genera todas las citas recurrentes para la serie (INCLUYENDO la fecha original)"""
+    """Genera todas las citas recurrentes para la serie (EXCLUYENDO la fecha original)"""
     citas_generadas = []
     
-    # Empezar desde la fecha original (no desde la semana siguiente)
     fecha_actual = fecha_inicio
     
-    semana_numero = 0  # Empezar desde 0 para incluir la semana original
+    semana_numero = 0
+    
+    # Ajuste para iniciar en la semana siguiente a la original
+    fecha_actual += timedelta(days=7)
+    semana_numero = 1
+    
     while fecha_actual <= fecha_fin and semana_numero <= 12:  # Máximo 12 semanas (3 meses)
         
-        # Asegurar que sea el mismo día de la semana
-        while fecha_actual.weekday() != dia_semana and fecha_actual <= fecha_fin:
-            fecha_actual += timedelta(days=1)
-        
-        if fecha_actual > fecha_fin:
-            break
-            
-        # Verificar disponibilidad antes de crear la cita (excepto para la fecha original que ya fue verificada)
-        if fecha_actual == fecha_inicio or verificar_disponibilidad_fecha(fecha_actual, hora):
+        # Verificar disponibilidad antes de crear la cita
+        if verificar_disponibilidad_fecha(fecha_actual, hora):
             id_gabinete = get_next_available_gabinete(fecha_actual)
             
-            # Para la fecha original, ya existe la cita, solo la registramos en la serie
-            if fecha_actual == fecha_inicio:
-                print(f"  📅 Semana {semana_numero}: {fecha_actual} - Cita original")
-            else:
-                # Crear nueva cita para fechas futuras
-                cita = Cita(
-                    fecha=fecha_actual,
-                    hora=hora,
-                    id_paciente=id_paciente,
-                    id_motivo=3,  # Terapia visual
-                    id_gabinete=id_gabinete,
-                    estado='Programada',
-                    id_usuario=id_usuario
-                )
-                db.session.add(cita)
-                db.session.flush()
-                
-                # Registrar en el detalle de la serie recurrente
-                detalle = CitaRecurrenteDetalle(
-                    id_serie=id_serie,
-                    id_cita=cita.id_cita,
-                    fecha_programada=fecha_actual,
-                    estado_individual='Programada'
-                )
-                db.session.add(detalle)
-                
-                citas_generadas.append(cita)
-                print(f"  📅 Semana {semana_numero}: {fecha_actual} - Gabinete {id_gabinete}")
+            # Crear nueva cita para fechas futuras
+            cita = Cita(
+                fecha=fecha_actual,
+                hora=hora,
+                id_paciente=id_paciente,
+                id_motivo=3,  # Terapia visual
+                id_gabinete=id_gabinete,
+                estado='Programada',
+                id_usuario=id_usuario
+            )
+            db.session.add(cita)
+            db.session.flush()
+            
+            # Registrar en el detalle de la serie recurrente
+            detalle = CitaRecurrenteDetalle(
+                id_serie=id_serie,
+                id_cita=cita.id_cita,
+                fecha_programada=fecha_actual,
+                estado_individual='Programada'
+            )
+            db.session.add(detalle)
+            
+            citas_generadas.append(cita)
+            print(f"  📅 Semana {semana_numero}: {fecha_actual} - Gabinete {id_gabinete}")
         
         # Avanzar a la siguiente semana (7 días exactos)
         fecha_actual += timedelta(days=7)
@@ -568,7 +564,8 @@ def agendar_cita():
     superposicion = Cita.query.filter_by(fecha=fecha_dt, hora=hora_dt).first()
     if superposicion:
          # Ya que las citas son de una hora, la superposición simple basta.
-         return jsonify({'message': 'Horario ya ocupado para ese día en todos los gabinetes.'}), 
+         # 🎯 CORRECCIÓN: Agregar código de estado 409 para devolver una tupla válida (body, status)
+         return jsonify({'message': 'Horario ya ocupado para ese día en todos los gabinetes.'}), 409
     
     # 3. Asignación de Gabinete (ciclado 1-6)
     id_gabinete = get_next_available_gabinete(fecha_dt)
@@ -589,6 +586,7 @@ def agendar_cita():
         
         print(f"✅ Cita agendada: {paciente.nombre} el {data['fecha']} a las {data['hora']} en {gabinete.nombre}")
         
+        # El método to_dict() ya está disponible en la clase Cita
         return jsonify({
             'message': 'Cita agendada con éxito',
             'cita': nueva_cita.to_dict()
@@ -629,10 +627,6 @@ def get_disponibilidad():
     horarios_atencion = getattr(Config, 'HORARIOS_ATENCION', [])
 
     for hora in horarios_atencion:
-        # Una hora está ocupada si ya hay 6 citas (un ciclo completo de gabinetes)
-        # o si la hora específica ya tiene una cita, lo cual implica que el ciclo ya avanzó
-        # Simplificación: Si ya hay una cita a esta hora, asumimos que todos los gabinetes ya están asignados
-        
         # Corrección de lógica: Para que el paciente solo vea si la hora está disponible,
         # solo verificamos si ya se llenaron los 6 gabinetes para esa hora.
         citas_en_hora = Cita.query.filter_by(fecha=fecha_dt, hora=datetime.strptime(hora, '%H:%M:%S').time()).count()
@@ -675,6 +669,7 @@ def get_citas_admin():
     try:
         print(f"📊 Citas solicitadas por: {current_user.nombre_usuario}")
         citas = Cita.query.order_by(Cita.fecha, Cita.hora).all()
+        # Asegúrate de que to_dict() se use correctamente aquí
         return jsonify([cita.to_dict() for cita in citas]), 200
     except Exception as e:
         return jsonify({'message': 'Error al cargar citas', 'error': str(e)}), 500
@@ -683,25 +678,8 @@ def get_citas_admin():
 def debug_citas():
     try:
         citas = Cita.query.all()
-        result = []
-        for cita in citas:
-            cita_data = {
-                'id_cita': cita.id_cita,
-                'fecha': cita.fecha.strftime('%Y-%m-%d'),
-                'hora': str(cita.hora),
-                'paciente': {
-                    'nombre': cita.paciente.nombre,
-                    'apellido': cita.paciente.apellido,
-                    'edad': cita.paciente.edad,
-                    'telefono': cita.paciente.telefono
-                },
-                'motivo': cita.motivo.descripcion,
-                'gabinete': cita.gabinete.nombre,
-                'estado': cita.estado
-            }
-            result.append(cita_data)
-        
-        return jsonify(result), 200
+        # Asegúrate de que to_dict() se use correctamente aquí
+        return jsonify([cita.to_dict() for cita in citas]), 200
     except Exception as e:
         # Manejar el caso donde no hay citas o no hay BD
         print(f"Error en debug_citas: {e}")
@@ -877,15 +855,25 @@ def agendar_terapia_visual_api():
         
         print(f"👤 Creando paciente: {nombre} {apellido}")
         
-        paciente = Paciente(
-            nombre=nombre,
-            apellido=apellido,
-            edad=data.get('edad', 0) or 0,
-            telefono=data.get('telefono', '000-0000') or '000-0000'
-        )
-        db.session.add(paciente)
-        db.session.flush()
-        print(f"✅ Paciente creado con ID: {paciente.id_paciente}")
+        # Manejar el caso de que el teléfono sea None/vacio
+        telefono_paciente = data.get('telefono', '000-0000') or '000-0000'
+        
+        # Verificar si el paciente ya existe por teléfono para evitar duplicados ÚNICOS
+        paciente_existente = Paciente.query.filter_by(telefono=telefono_paciente).first()
+        if paciente_existente:
+             # Si ya existe, asumimos que estamos usando ese paciente.
+             paciente = paciente_existente
+        else:
+             paciente = Paciente(
+                nombre=nombre,
+                apellido=apellido,
+                edad=data.get('edad', 0) or 0,
+                telefono=telefono_paciente
+            )
+             db.session.add(paciente)
+             db.session.flush()
+        
+        print(f"✅ Paciente usado con ID: {paciente.id_paciente}")
         
         # Asignar gabinete
         id_gabinete = get_next_available_gabinete(fecha_inicio)
@@ -972,6 +960,7 @@ def agendar_terapia_visual_api():
             total_citas = 1 + len(citas_generadas)  # Original + recurrentes
             mensaje_final = f'Terapia visual recurrente agendada exitosamente. {total_citas} citas creadas hasta el {fecha_fin}.'
         else:
+            total_citas = 1
             mensaje_final = 'Cita individual de terapia visual agendada exitosamente.'
         
         print(f"🎉 PROCESO COMPLETADO: {mensaje_final}")
@@ -991,7 +980,7 @@ def agendar_terapia_visual_api():
                 'gabinete': gabinete.nombre,
                 'estado': cita_original.estado
             },
-            'total_citas': 1 + len(citas_generadas) if es_recurrente else 1,
+            'total_citas': total_citas,
             'fecha_fin': fecha_fin.strftime('%Y-%m-%d') if es_recurrente else None
         }), 201
 
