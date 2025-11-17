@@ -64,8 +64,7 @@ h1 {
 }
 
 .card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.1);
 }
 
 .card h2 {
@@ -98,7 +97,7 @@ h1 {
 }
 
 .stat-card:hover {
-    background-color: #e9f2ff;
+    background-color: #f0f5ff;
 }
 
 .stat-card.completadas {
@@ -432,6 +431,8 @@ h1 {
     height: 100%;
     background-color: rgba(0, 0, 0, 0.5);
     animation: fadeIn 0.3s;
+    overflow-y: auto; /* AGREGAR: Permitir scroll en el overlay del modal */
+    padding: 20px 0; /* AGREGAR: Espacio alrededor */
 }
 
 @keyframes fadeIn {
@@ -441,12 +442,24 @@ h1 {
 
 .modal-content {
     background-color: white;
-    margin: 5% auto;
+    margin: 2% auto;
     border-radius: 12px;
-    width: 90%;
-    max-width: 600px;
+    width: 95%;
+    max-width: 700px;
+    max-height: 90vh;
+    overflow-y: auto;
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
     animation: slideIn 0.3s;
+}
+
+/* ESTILOS ESPECÍFICOS PARA MODAL DE EDICIÓN */
+#edit-modal .modal-content {
+    max-height: 85vh; /* Un poco menos de altura para mejor visualización */
+}
+
+#edit-modal .modal-body {
+    max-height: calc(85vh - 120px); /* Ajustar según la nueva altura */
+    overflow-y: auto;
 }
 
 @keyframes slideIn {
@@ -483,6 +496,7 @@ h1 {
 
 .modal-body {
     padding: 25px;
+    max-height: calc(90vh - 120px);
 }
 
 .patient-detail h3 {
@@ -586,7 +600,6 @@ h1 {
     }
 }
 
-/* Agrega estos estilos al final de tu estiloAdmin.css */
 
 /* Mejoras para la tabla de horarios */
 .schedule-table td.has-appointment {
@@ -760,8 +773,23 @@ h1 {
 /* Responsive */
 @media (max-width: 768px) {
     .modal-content {
-        margin: 5% auto;
-        width: 95%;
+        margin: 1% auto;
+        width: 98%;
+        max-height: 95vh;
+    }
+    
+    /* ESPECÍFICO PARA MODAL DE EDICIÓN EN MÓVIL */
+    #edit-modal .modal-content {
+        max-height: 90vh;
+    }
+    
+    #edit-modal .modal-body {
+        max-height: calc(90vh - 100px);
+        padding: 15px;
+    }
+    
+    #edit-modal .form-row {
+        grid-template-columns: 1fr; /* Una columna en móviles */
     }
 }
 
@@ -769,9 +797,14 @@ h1 {
 .admin-navigation {
     display: flex;
     gap: 10px;
-    margin-bottom: 25px;
+    margin-bottom: 30px; 
     border-bottom: 2px solid var(--light-gray);
     padding-bottom: 15px;
+}
+
+
+.admin-section {
+    margin-bottom: 30px; 
 }
 
 .nav-btn {
@@ -838,13 +871,6 @@ h1 {
     box-shadow: 0 0 0 3px rgba(143, 173, 143, 0.1);
 }
 
-/* Icono para terapia visual */
-.fa-eye-exercises::before {
-    content: "👁️";
-    font-style: normal;
-}
-
-/* ⭐⭐ AGREGAR al final del archivo */
 
 /* Estilos para checkbox personalizado */
 .checkbox-label {
@@ -918,4 +944,49 @@ h1 {
 /* Opcional: Si el fondo de 'seleccionado' es muy oscuro, cambia el punto a blanco o amarillo solo en ese día para que resalte más */
 .calendar-date.selected.has-appointments::after {
     background-color: #fff; /* Cambia a blanco si seleccionas el día (opcional) */
+}
+
+/* ==================== ESTILOS ESPECÍFICOS PARA FORMULARIO DE EDICIÓN ==================== */
+
+#edit-modal .current-info {
+    background: #e9f2ff !important;
+    border-left: 4px solid var(--primary);
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+#edit-modal .current-info h4 {
+    margin-top: 0;
+    color: var(--primary);
+    margin-bottom: 10px;
+}
+
+#edit-modal .current-info > div {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+#edit-modal .current-info > div > div {
+    margin-bottom: 5px;
+}
+
+#edit-fields-container {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    margin: 15px 0;
+}
+
+/* Mejorar inputs específicos del modal de edición */
+#edit-modal .form-group input,
+#edit-modal .form-group select,
+#edit-modal .form-group textarea {
+    font-size: 14px;
+}
+
+#edit-modal .form-group textarea {
+    resize: vertical;
+    min-height: 80px;
 }

@@ -746,7 +746,7 @@ function showEditModal(cita) {
                             <label for="edit-matricula"><i class="fas fa-id-card"></i> Tu Matrícula:</label>
                             <input type="text" id="edit-matricula" 
                                    placeholder="Ej: 2024001 o 99999" 
-                                   pattern="[0-9]+" // <-- CORRECCIÓN: Solo números
+                                   pattern="[0-9]+"
                                    title="Solo números"
                                    required>
                             <small>Ingresa tu matrícula para registrar quién realizó el cambio</small>
@@ -822,6 +822,13 @@ function showEditModal(cita) {
     
     document.body.insertAdjacentHTML('beforeend', modalHTML);
     document.getElementById('edit-modal').style.display = 'block';
+    
+    // AGREGAR: Event listener para cerrar al hacer clic fuera del modal
+    document.getElementById('edit-modal').addEventListener('click', function(event) {
+        if (event.target === this) {
+            closeEditModal();
+        }
+    });
     
     // Configurar eventos dinámicos
     setupEditModalEvents();

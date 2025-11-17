@@ -224,44 +224,60 @@ def encontrar_proximo_dia(fecha, dia_semana):
     return fecha + timedelta(days=dias_restantes)
 
 def generar_citas_recurrentes(id_serie, id_paciente, fecha_inicio, fecha_fin, dia_semana, hora, id_usuario):
-    """Genera todas las citas recurrentes para la serie"""
+    """Genera todas las citas recurrentes para la serie (INCLUYENDO la fecha original)"""
     citas_generadas = []
+    
+    # Empezar desde la fecha original (no desde la semana siguiente)
     fecha_actual = fecha_inicio
     
-    # Saltar la primera cita (ya fue creada)
-    fecha_actual = encontrar_proximo_dia(fecha_actual + timedelta(days=1), dia_semana)
-    
-    while fecha_actual <= fecha_fin:
-        # Verificar disponibilidad antes de crear la cita
-        if verificar_disponibilidad_fecha(fecha_actual, hora):
+    semana_numero = 0  # Empezar desde 0 para incluir la semana original
+    while fecha_actual <= fecha_fin and semana_numero <= 12:  # Máximo 12 semanas (3 meses)
+        
+        # Asegurar que sea el mismo día de la semana
+        while fecha_actual.weekday() != dia_semana and fecha_actual <= fecha_fin:
+            fecha_actual += timedelta(days=1)
+        
+        if fecha_actual > fecha_fin:
+            break
+            
+        # Verificar disponibilidad antes de crear la cita (excepto para la fecha original que ya fue verificada)
+        if fecha_actual == fecha_inicio or verificar_disponibilidad_fecha(fecha_actual, hora):
             id_gabinete = get_next_available_gabinete(fecha_actual)
             
-            cita = Cita(
-                fecha=fecha_actual,
-                hora=hora,
-                id_paciente=id_paciente,
-                id_motivo=3,  # Terapia visual
-                id_gabinete=id_gabinete,
-                estado='Programada',
-                id_usuario=id_usuario
-            )
-            db.session.add(cita)
-            db.session.flush()
-            
-            # Registrar en el detalle de la serie recurrente
-            detalle = CitaRecurrenteDetalle(
-                id_serie=id_serie,
-                id_cita=cita.id_cita,
-                fecha_programada=fecha_actual,
-                estado_individual='Programada'
-            )
-            db.session.add(detalle)
-            
-            citas_generadas.append(cita)
+            # Para la fecha original, ya existe la cita, solo la registramos en la serie
+            if fecha_actual == fecha_inicio:
+                print(f"  📅 Semana {semana_numero}: {fecha_actual} - Cita original")
+            else:
+                # Crear nueva cita para fechas futuras
+                cita = Cita(
+                    fecha=fecha_actual,
+                    hora=hora,
+                    id_paciente=id_paciente,
+                    id_motivo=3,  # Terapia visual
+                    id_gabinete=id_gabinete,
+                    estado='Programada',
+                    id_usuario=id_usuario
+                )
+                db.session.add(cita)
+                db.session.flush()
+                
+                # Registrar en el detalle de la serie recurrente
+                detalle = CitaRecurrenteDetalle(
+                    id_serie=id_serie,
+                    id_cita=cita.id_cita,
+                    fecha_programada=fecha_actual,
+                    estado_individual='Programada'
+                )
+                db.session.add(detalle)
+                
+                citas_generadas.append(cita)
+                print(f"  📅 Semana {semana_numero}: {fecha_actual} - Gabinete {id_gabinete}")
         
-        # Avanzar a la siguiente semana
-        fecha_actual = encontrar_proximo_dia(fecha_actual + timedelta(days=1), dia_semana)
+        # Avanzar a la siguiente semana (7 días exactos)
+        fecha_actual += timedelta(days=7)
+        semana_numero += 1
     
+    print(f"📊 Total de citas recurrentes generadas: {len(citas_generadas)}")
     return citas_generadas
 
 def obtener_serie_de_cita(cita_id):
@@ -792,7 +808,7 @@ def serve_static_files(filename):
 def favicon():
     return '', 204
 
-#ruta terapia visual
+#ruta terapia visual        
 @app.route('/api/citas/agendar_terapia', methods=['POST'])
 @login_required
 def agendar_terapia_visual_api():
@@ -885,17 +901,20 @@ def agendar_terapia_visual_api():
         db.session.flush()
         print(f"✅ Cita original creada: ID {cita_original.id_cita}")
         
-        # SOLUCIÓN TEMPORAL: Deshabilitar recurrencia para pruebas
+        # PROCESAR RECURRENCIA
         es_recurrente = data.get('es_recurrente', True)
         citas_generadas = []
-        
+        fecha_fin = None  # Inicializar variable
+
         if es_recurrente:
-            print("🔄 Recurrencia temporalmente deshabilitada para pruebas")
-            # Por ahora solo creamos la cita individual para probar
-            # Comentamos toda la parte de recurrencia
+            print("🔄 Creando serie recurrente por 3 meses...")
             
-            """
-            print("🔄 Creando serie recurrente...")
+            # Calcular fecha fin (3 meses después)
+            fecha_fin = calcular_fecha_fin(fecha_inicio, meses=3)
+            dia_semana = fecha_inicio.weekday()  # 0=Lunes, 6=Domingo
+            
+            print(f"📅 Serie recurrente: {fecha_inicio} a {fecha_fin} (día {dia_semana})")
+            
             # Crear serie recurrente
             serie_recurrente = CitaRecurrente(
                 id_cita_original=cita_original.id_cita,
@@ -903,29 +922,45 @@ def agendar_terapia_visual_api():
                 fecha_fin=fecha_fin,
                 dia_semana=dia_semana,
                 hora=hora_dt,
-                creado_por=current_user.id_usuario
+                creado_por=current_user.id_usuario,
+                estado_serie='Activa'
             )
             db.session.add(serie_recurrente)
             db.session.flush()
+            print(f"✅ Serie recurrente creada: ID {serie_recurrente.id_serie}")
 
-            # Generar todas las citas de la serie
+            # Registrar la cita original en la serie
+            detalle_original = CitaRecurrenteDetalle(
+                id_serie=serie_recurrente.id_serie,
+                id_cita=cita_original.id_cita,
+                fecha_programada=fecha_inicio,
+                estado_individual='Programada'
+            )
+            db.session.add(detalle_original)
+
+            # Generar citas futuras (excluyendo la original)
             citas_generadas = generar_citas_recurrentes(
                 serie_recurrente.id_serie,
                 paciente.id_paciente,
-                fecha_inicio,
+                fecha_inicio,  # Empezar desde la fecha original
                 fecha_fin,
                 dia_semana,
                 hora_dt,
                 current_user.id_usuario
             )
-            print(f"✅ Serie recurrente creada: {len(citas_generadas)} citas adicionales")
-            """
+            print(f"✅ Citas recurrentes generadas: {len(citas_generadas)} adicionales")
+            
         else:
             print("✅ Cita individual creada (sin recurrencia)")
 
         db.session.commit()
 
-        mensaje_final = f'Terapia visual agendada exitosamente. Cita individual creada.'  # Modificado temporalmente
+        # Mensaje final según tipo de cita
+        if es_recurrente:
+            total_citas = 1 + len(citas_generadas)  # Original + recurrentes
+            mensaje_final = f'Terapia visual recurrente agendada exitosamente. {total_citas} citas creadas hasta el {fecha_fin}.'
+        else:
+            mensaje_final = 'Cita individual de terapia visual agendada exitosamente.'
         
         print(f"🎉 PROCESO COMPLETADO: {mensaje_final}")
         
@@ -944,8 +979,8 @@ def agendar_terapia_visual_api():
                 'gabinete': gabinete.nombre,
                 'estado': cita_original.estado
             },
-            'total_citas': 1,  # Temporalmente solo 1 cita
-            'fecha_fin': None  # Temporalmente sin fecha fin
+            'total_citas': 1 + len(citas_generadas) if es_recurrente else 1,
+            'fecha_fin': fecha_fin.strftime('%Y-%m-%d') if es_recurrente else None
         }), 201
 
     except Exception as e:
@@ -954,52 +989,6 @@ def agendar_terapia_visual_api():
         import traceback
         print(f"📝 Stack trace: {traceback.format_exc()}")
         return jsonify({'message': 'Error al agendar terapia visual', 'error': str(e)}), 500
-
-def calcular_fecha_fin(fecha_inicio, meses=3):
-    """Calcula la fecha fin sumando meses a la fecha inicio"""
-    from dateutil.relativedelta import relativedelta
-    return fecha_inicio + relativedelta(months=meses)
-
-def generar_citas_recurrentes(id_serie, id_paciente, fecha_inicio, fecha_fin, dia_semana, hora, id_usuario):
-    """Genera todas las citas recurrentes para la serie"""
-    citas_generadas = []
-    fecha_actual = fecha_inicio
-    
-    # Saltar la primera cita (ya fue creada)
-    fecha_actual = encontrar_proximo_dia(fecha_actual + timedelta(days=1), dia_semana)
-    
-    while fecha_actual <= fecha_fin:
-        # Verificar disponibilidad antes de crear la cita
-        if verificar_disponibilidad_fecha(fecha_actual, hora):
-            id_gabinete = get_next_available_gabinete(fecha_actual)
-            
-            cita = Cita(
-                fecha=fecha_actual,
-                hora=hora,
-                id_paciente=id_paciente,
-                id_motivo=3,  # Terapia visual
-                id_gabinete=id_gabinete,
-                estado='Programada',
-                id_usuario=id_usuario
-            )
-            db.session.add(cita)
-            db.session.flush()
-            
-            # Registrar en el detalle de la serie recurrente
-            detalle = CitaRecurrenteDetalle(
-                id_serie=id_serie,
-                id_cita=cita.id_cita,
-                fecha_programada=fecha_actual,
-                estado_individual='Programada'
-            )
-            db.session.add(detalle)
-            
-            citas_generadas.append(cita)
-        
-        # Avanzar a la siguiente semana
-        fecha_actual = encontrar_proximo_dia(fecha_actual + timedelta(days=1), dia_semana)
-    
-    return citas_generadas
 
 def encontrar_proximo_dia(fecha, dia_semana):
     """Encuentra la próxima fecha que coincida con el día de la semana"""
