@@ -889,3 +889,33 @@ h1 {
 .checkbox-label:hover .checkmark {
     border-color: var(--secondary);
 }
+
+
+/* Estilo base para la celda del calendario */
+.calendar-date {
+    position: relative; /* Necesario para que el punto se ancle aquí */
+    z-index: 1;         /* Nivel base */
+}
+
+/* El PUNTO ROJO - Configuración para que NUNCA desaparezca */
+.calendar-date.has-appointments::after {
+    content: '';
+    position: absolute;
+    bottom: 4px;           /* Ubicación desde abajo */
+    left: 50%;             /* Centrado */
+    transform: translateX(-50%);
+    
+    width: 6px;            /* Tamaño */
+    height: 6px;
+    background-color: #e74c3c; /* ROJO */
+    border-radius: 50%;
+    
+    /* ESTA ES LA MAGIA: */
+    z-index: 100;          /* Un número alto para estar SIEMPRE encima del fondo verde */
+    display: block !important; /* Fuerza que se muestre siempre */
+}
+
+/* Opcional: Si el fondo de 'seleccionado' es muy oscuro, cambia el punto a blanco o amarillo solo en ese día para que resalte más */
+.calendar-date.selected.has-appointments::after {
+    background-color: #fff; /* Cambia a blanco si seleccionas el día (opcional) */
+}

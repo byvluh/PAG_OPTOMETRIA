@@ -466,37 +466,34 @@ function markDaysWithAppointments() {
         el.classList.remove('has-appointments');
     });
     
-    // Contar citas por día para debug
-    const citasPorDia = {};
-    allCitas.forEach(cita => {
-        citasPorDia[cita.fecha] = (citasPorDia[cita.fecha] || 0) + 1;
-    });
-    console.log('📊 Citas por día:', citasPorDia);
-    
-    // Marcar días que tienen citas
-    allCitas.forEach(cita => {
-        const citaDate = new Date(cita.fecha);
-        // Ajuste: las fechas de la BD vienen sin hora y JS las interpreta en UTC, forzando la fecha al día anterior. 
-        // Se corrige cargando solo la parte de la fecha.
-        const citaDateFixed = new Date(cita.fecha + 'T00:00:00'); 
+    // Obtener mes y año actuales del calendario visible
+    const currentMonth = currentDate.getMonth(); // 0-11
+    const currentYear = currentDate.getFullYear();
 
-        if (citaDateFixed.getMonth() === currentDate.getMonth() && 
-            citaDateFixed.getFullYear() === currentDate.getFullYear()) {
-            
+    allCitas.forEach(cita => {
+        // La fecha viene como "YYYY-MM-DD" desde la API (string)
+        if (!cita.fecha) return;
+
+        // Desglosamos la fecha string para evitar conversiones de zona horaria
+        // Ejemplo: "2025-11-19" -> parts[0]=2025, parts[1]=11, parts[2]=19
+        const parts = cita.fecha.split('-'); 
+        const citaYear = parseInt(parts[0]);
+        const citaMonth = parseInt(parts[1]) - 1; // Restamos 1 porque en JS los meses son 0-11
+        const citaDay = parseInt(parts[2]);
+
+        // Comparamos si la cita pertenece al mes y año que estamos viendo
+        if (citaYear === currentYear && citaMonth === currentMonth) {
             const dayElements = document.querySelectorAll('.calendar-date:not(.other-month)');
+            
             dayElements.forEach(dayElement => {
                 const dayNumber = parseInt(dayElement.textContent);
-                if (dayNumber === citaDateFixed.getDate()) {
+                if (dayNumber === citaDay) {
                     dayElement.classList.add('has-appointments');
-                    // console.log(`📍 Marcado día ${dayNumber} con cita`);
                 }
             });
         }
     });
-    
-    console.log('✅ Días marcados:', document.querySelectorAll('.has-appointments').length);
 }
-
 function initializeCalendarEvents() {
     // Re-bindear eventos al actualizar el calendario
     const calendarDates = document.querySelectorAll('.calendar-grid .calendar-date:not(.other-month)');
@@ -510,25 +507,27 @@ function initializeCalendarEvents() {
 }
 
 function handleDateSelection(dateElement) {
+    // 1. Obtener el día clicado
     const selectedDay = parseInt(dateElement.textContent);
     
-    // Usamos el año y mes actual para construir la fecha
+    // 2. Crear la fecha (sin restar zonas horarias)
     selectedCalendarDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), selectedDay);
     
-    // Ajuste para evitar problemas de zona horaria al formatear
-    const fixedDate = new Date(selectedCalendarDate.getTime() - selectedCalendarDate.getTimezoneOffset() * 60000); 
-
-    // Actualizar selección visual
+    // 3. Limpieza visual: Quitamos SOLO la clase 'selected' de los otros días
     document.querySelectorAll('.calendar-date').forEach(date => {
-        date.classList.remove('selected');
+        date.classList.remove('selected'); 
+        // ¡IMPORTANTE! NO hacemos remove('has-appointments') aquí.
+        // El punto rojo se queda donde estaba.
     });
+    
+    // 4. Añadimos la clase 'selected' al nuevo día
     dateElement.classList.add('selected');
     
-    updateSelectedDate(fixedDate);
-    updateScheduleForDate(fixedDate);
-    updatePatientCardsForDate(fixedDate);
+    // 5. Actualizar el resto del panel
+    updateSelectedDate(selectedCalendarDate);
+    updateScheduleForDate(selectedCalendarDate);
+    updatePatientCardsForDate(selectedCalendarDate);
 }
-
 function updateSelectedDate(date) {
     const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
     const formattedDate = date.toLocaleDateString('es-ES', options);
