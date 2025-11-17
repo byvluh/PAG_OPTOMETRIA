@@ -1,8 +1,21 @@
+
+
 body {
   font-family: 'Segoe UI', sans-serif;
-  margin: 0;
-  background: #f5f7f5;
-  color: #102a17;
+   background: #f5f7f5;
+   color: #102a17;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh; /* Ocupar el 100% de la altura de la ventana */
+    margin: 0;
+}
+main {
+    flex: 1; /* Esto empuja el footer hacia abajo */
+    /* Tus otros estilos del main (si tienes) pueden ir aquí */
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center; /* Esto ayudará a centrar verticalmente tu tarjeta también */
 }
 
 header {
@@ -417,4 +430,35 @@ input {
     background: #1e3a2a !important;
     border-color: #1e3a2a !important;
     transform: scale(1.05);
+}
+
+/* Botón flotante de WhatsApp - VERSIÓN GRANDE */
+.whatsapp-btn {
+    position: fixed;
+    bottom: 30px;       /* Un poco más separado del borde */
+    right: 30px;
+    
+    /* AUMENTAMOS EL TAMAÑO AQUÍ: */
+    width: 80px;        /* Antes era 60px */
+    height: 80px;       /* Antes era 60px (deben ser iguales para que sea redondo) */
+    font-size: 50px;    /* Icono más grande (antes 35px) */
+    
+    background-color: #25d366;
+    color: white;
+    border-radius: 50%;
+    box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    
+    /* Centrar el icono */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-decoration: none;
+    
+    transition: all 0.3s ease;
+}
+
+.whatsapp-btn:hover {
+    background-color: #128c7e;
+    transform: scale(1.1); /* Crece aún más al pasar el mouse */
 }
