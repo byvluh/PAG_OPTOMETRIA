@@ -718,6 +718,13 @@ function editAppointment() {
 // Se elimina openEditModal ya que los datos ya están en allCitas
 
 function showEditModal(cita) {
+    console.log("📝 Abriendo modal de edición para cita:", cita);
+    
+    // Verificar que la cita tenga todos los datos necesarios
+    if (!cita || !cita.id_cita) {
+        alert('❌ Error: Datos de cita incompletos');
+        return;
+    }
     const modalHTML = `
         <div id="edit-modal" class="modal">
             <div class="modal-content" style="max-width: 700px;">
@@ -889,6 +896,8 @@ function closeEditModal() {
 async function handleEditFormSubmit(event) {
     event.preventDefault();
     
+    console.log("🔄 Iniciando envío de formulario de edición...");
+    
     const matricula = document.getElementById('edit-matricula').value;
     const tipoModificacion = document.getElementById('edit-tipo-modificacion').value;
     const motivoModificacion = document.getElementById('edit-motivo-modificacion').value;
@@ -943,9 +952,12 @@ async function handleEditFormSubmit(event) {
             body: JSON.stringify(formData)
         });
         
+        console.log('📡 Respuesta del servidor:', response.status);
+        
+        // ✅ CORRECCIÓN: Mejor manejo de la respuesta
+        const result = await response.json();
+        
         if (response.ok) {
-            const result = await response.json();
-            
             // Mostrar confirmación detallada
             let mensaje = `✅ Modificación realizada exitosamente\n`;
             mensaje += `📝 Registrado por: ${matricula}\n`;
@@ -962,12 +974,14 @@ async function handleEditFormSubmit(event) {
             updateStats();
             
         } else {
-            const errorData = await response.json();
-            throw new Error(errorData.message || 'Error al actualizar cita');
+            // ✅ CORRECCIÓN: Mostrar el mensaje específico del servidor
+            console.error('❌ Error del servidor:', result);
+            throw new Error(result.message || `Error ${response.status}: ${response.statusText}`);
         }
         
     } catch (error) {
         console.error('❌ Error actualizando cita:', error);
+        // ✅ CORRECCIÓN: Mostrar mensaje de error más específico
         alert('❌ Error al modificar la cita: ' + error.message);
     }
 }
@@ -1114,4 +1128,66 @@ function getDemoCitas() {
             estado: 'Completada'
         },
     ];
+}
+
+//arreglo del calendario, ver como optimizar el codigo ya existente en base a este bloque nuevo
+function renderCalendarGrid() {
+    const grid = document.querySelector('.calendar-grid');
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+
+    // 1. Limpiar la cuadrícula (pero guardar los encabezados si están dentro)
+    // O mejor: Reconstruimos todo para asegurar limpieza.
+    grid.innerHTML = `
+        <div class="calendar-day">Dom</div>
+        <div class="calendar-day">Lun</div>
+        <div class="calendar-day">Mar</div>
+        <div class="calendar-day">Mié</div>
+        <div class="calendar-day">Jue</div>
+        <div class="calendar-day">Vie</div>
+        <div class="calendar-day">Sáb</div>
+    `;
+
+    // 2. Calcular fechas clave
+    const firstDayIndex = new Date(year, month, 1).getDay(); // Día semana del 1 (0=Dom, 1=Lun...)
+    const lastDay = new Date(year, month + 1, 0).getDate();  // Último día del mes actual
+    const prevLastDay = new Date(year, month, 0).getDate();  // Último día del mes anterior
+
+    // 3. Días del mes anterior (Relleno inicial)
+    for (let x = firstDayIndex; x > 0; x--) {
+        const dayDiv = document.createElement('div');
+        dayDiv.classList.add('calendar-date', 'other-month');
+        dayDiv.textContent = prevLastDay - x + 1;
+        grid.appendChild(dayDiv);
+    }
+
+    // 4. Días del mes actual
+    for (let i = 1; i <= lastDay; i++) {
+        const dayDiv = document.createElement('div');
+        dayDiv.classList.add('calendar-date');
+        dayDiv.textContent = i;
+        
+        // Si es hoy, marcarlo (opcional)
+        const today = new Date();
+        if (i === today.getDate() && month === today.getMonth() && year === today.getFullYear()) {
+            dayDiv.classList.add('today'); // Puedes añadir estilo CSS para .today si quieres
+        }
+
+        grid.appendChild(dayDiv);
+    }
+
+    // 5. Días del mes siguiente (Relleno final para completar cuadrícula)
+    // Calculamos cuántos cuadros faltan para llenar filas completas (usualmente 35 o 42 celdas total)
+    const totalCellsSoFar = firstDayIndex + lastDay;
+    const nextDays = 42 - totalCellsSoFar; // Usamos 42 para asegurar 6 filas siempre
+
+    for (let j = 1; j <= nextDays; j++) {
+        const dayDiv = document.createElement('div');
+        dayDiv.classList.add('calendar-date', 'other-month');
+        dayDiv.textContent = j;
+        grid.appendChild(dayDiv);
+    }
+
+    // 6. Re-inicializar los eventos de click porque son elementos nuevos
+    initializeCalendarEvents();
 }

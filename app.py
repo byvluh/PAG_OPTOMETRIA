@@ -161,6 +161,7 @@ class Cita(db.Model):
     id_gabinete = db.Column(db.Integer, db.ForeignKey('gabinete.id_gabinete'), nullable=False)
     id_usuario = db.Column(db.Integer, db.ForeignKey('usuario.id_usuario'), nullable=True)
     estado = db.Column(db.String(20), default='Programada')
+    
 
 # cita recurrente new model
 
@@ -719,7 +720,7 @@ def editar_cita_completa(cita_id):
     data = request.get_json()
     cita = Cita.query.get_or_404(cita_id)
     
-    # Validar Matrícula (Solo se aceptan DÍGITOS, según el minimundo "no contenga letras")
+    # Validar Matrícula (Solo se aceptan DÍGITOS)
     matricula = data.get('matricula_editor')
     if matricula and not matricula.isdigit():
         return jsonify({'message': 'Validación de matrícula fallida: Solo se permiten números.'}), 400
@@ -750,24 +751,26 @@ def editar_cita_completa(cita_id):
         print("─" * 60)
     
     # Aplicar cambios
-    if 'fecha' in data:
-        try:
-            cita.fecha = datetime.strptime(data['fecha'], '%Y-%m-%d').date()
-        except ValueError:
-            return jsonify({'message': 'Formato de fecha inválido'}), 400
-    
-    if 'hora' in data:
-        try:
-            cita.hora = datetime.strptime(data['hora'], '%H:%M:%S').time()
-        except ValueError:
-            return jsonify({'message': 'Formato de hora inválido'}), 400
-    
-    if 'estado' in data:
-        cita.estado = data['estado']
-    
     try:
+        if 'fecha' in data:
+            try:
+                cita.fecha = datetime.strptime(data['fecha'], '%Y-%m-%d').date()
+            except ValueError:
+                return jsonify({'message': 'Formato de fecha inválido. Use YYYY-MM-DD'}), 400
+        
+        if 'hora' in data:
+            try:
+                cita.hora = datetime.strptime(data['hora'], '%H:%M:%S').time()
+            except ValueError:
+                return jsonify({'message': 'Formato de hora inválido. Use HH:MM:SS'}), 400
+        
+        if 'estado' in data:
+            cita.estado = data['estado']
+        
         db.session.commit()
-        return jsonify({
+        
+        # ✅ CORRECCIÓN: Enviar respuesta más específica y completa
+        response_data = {
             'message': 'Cita actualizada correctamente', 
             'cita': cita.to_dict(),
             'auditoria': {
@@ -775,11 +778,20 @@ def editar_cita_completa(cita_id):
                 'tipo_modificacion': data.get('tipo_modificacion'),
                 'motivo': data.get('motivo_modificacion')
             }
-        }), 200
+        }
+        
+        print(f"✅ EDICIÓN EXITOSA - Cita {cita_id} actualizada")
+        return jsonify(response_data), 200
+        
     except Exception as e:
         db.session.rollback()
-        return jsonify({'message': 'Error al actualizar cita', 'error': str(e)}), 500
-
+        print(f"❌ ERROR en edición - Cita {cita_id}: {str(e)}")
+        # ✅ CORRECCIÓN: Enviar mensaje de error más específico
+        return jsonify({
+            'message': 'Error al actualizar cita en la base de datos', 
+            'error': str(e),
+            'details': 'Verifique los datos e intente nuevamente'
+        }), 500
 # ----------------------------------------------------
 # 🌐 Rutas para Servir Archivos HTML
 # ----------------------------------------------------
