@@ -238,20 +238,22 @@ function generateCalendar(date) {
 
     for (let d = 1; d <= lastDay.getDate(); d++) {
         const dayDiv = document.createElement('div');
-        dayDiv.textContent = d;
-        dayDiv.classList.add('day');
         
         // CORRECCIÓN para evitar problemas de zona horaria: Crear la fecha con hora fija (00:00:00)
         const dayDate = new Date(year, month, d, 0, 0, 0); 
         const dateKey = dayDate.toISOString().split('T')[0];
-        
-        // Deshabilitar fines de semana (Domingo: 0, Sábado: 6)
         const dayOfWeek = dayDate.getDay();
-        if (dayOfWeek === 0 || dayOfWeek === 6) {
-            dayDiv.classList.add('disabled', 'other-month');
+        
+        dayDiv.classList.add('day');
+        
+        // ⭐ CÓDIGO DE CORRECCIÓN: Mostrar guion en Sábados (6) y Domingos (0) ⭐
+        if (dayOfWeek === 0 || dayOfWeek === 6) { 
+            dayDiv.textContent = '-';
+            dayDiv.classList.add('disabled', 'weekend');
             dayDiv.style.cursor = 'not-allowed';
         } else {
-            // Deshabilitar días pasados
+            dayDiv.textContent = d;
+             // Deshabilitar días pasados
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             if (dayDate < today) {
@@ -261,6 +263,8 @@ function generateCalendar(date) {
                 dayDiv.addEventListener('click', () => selectDate(dateKey, dayDiv));
             }
         }
+        // ⭐ FIN CÓDIGO DE CORRECCIÓN ⭐
+
 
         if (selectedDate === dateKey) dayDiv.classList.add('selected');
 
@@ -306,6 +310,7 @@ async function selectDate(dateKey, dayDiv) {
 
 function generateTimeSlots(disponibilidad) {
     timeSlotsEl.innerHTML = '';
+    // Los horarios vienen ordenados y filtrados por el servidor (12:30:00 a 15:30:00)
     const availableHours = Object.keys(disponibilidad).sort();
     
     if (availableHours.length === 0) {
@@ -314,10 +319,19 @@ function generateTimeSlots(disponibilidad) {
     }
 
     availableHours.forEach(time24 => {
-        // Convertir hora de 24h a formato visible (ej: 12:30:00 -> 12:30)
-        const timeDisplay = time24.substring(0, 5); 
+        // Mapear hora 24h a formato visible con AM/PM para el usuario
+        let timeDisplay = time24.substring(0, 5);
+        if (time24.startsWith('12')) {
+            timeDisplay += ' PM';
+        } else if (parseInt(time24.substring(0, 2)) > 12) {
+            const hour12 = parseInt(time24.substring(0, 2)) - 12;
+            timeDisplay = `${hour12}:${time24.substring(3, 5)} PM`;
+        } else {
+            timeDisplay += ' PM'; // Todos son de la tarde
+        }
+        
         const timeSlotDiv = document.createElement('div');
-        timeSlotDiv.textContent = `${timeDisplay} hrs`;
+        timeSlotDiv.textContent = `${timeDisplay}`; // Ya tiene 'hrs' en la función selectTime
         timeSlotDiv.classList.add('time-slot');
 
         // La hora debe estar en formato 24h con segundos para el backend (12:30:00)
@@ -358,8 +372,20 @@ function updateSummary() {
     const formattedDate = dateObj.toLocaleDateString('es-ES', options);
     
     if (selectedTime) {
-        const timeDisplay = selectedTime.substring(0, 5);
-        selectedText.textContent = `${formattedDate} — ${timeDisplay} hrs`;
+        const timeDisplay24 = selectedTime.substring(0, 5);
+        
+        // Conversión a formato visible (igual que en generateTimeSlots)
+        let timeDisplay12 = timeDisplay24;
+        if (selectedTime.startsWith('12')) {
+            timeDisplay12 += ' PM';
+        } else if (parseInt(selectedTime.substring(0, 2)) > 12) {
+            const hour12 = parseInt(selectedTime.substring(0, 2)) - 12;
+            timeDisplay12 = `${hour12}:${selectedTime.substring(3, 5)} PM`;
+        } else {
+            timeDisplay12 += ' PM'; 
+        }
+
+        selectedText.textContent = `${formattedDate} — ${timeDisplay12} hrs`;
         document.getElementById('next3').disabled = false;
     } else {
         selectedText.textContent = `${formattedDate} (sin hora seleccionada)`;

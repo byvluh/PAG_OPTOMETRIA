@@ -1,4 +1,4 @@
-# app.py - VERSIÓN CORREGIDA FINAL
+# app.py - VERSIÓN CORREGIDA FINAL CON HORARIOS RESTRINGIDOS
 
 from flask import Flask, request, jsonify, session, make_response
 from flask_sqlalchemy import SQLAlchemy
@@ -97,25 +97,38 @@ usuario_permiso = db.Table('usuario_permiso',
     db.Column('id_permiso', db.Integer, db.ForeignKey('permiso.id_permiso'), primary_key=True)
 )
 
-# En la clase Config o en las variables globales, agregar todos los horarios
+# CLASE CONFIG SIMULADA/EXTENDIDA
 class Config:
     
-    # HORARIOS COMPLETOS DE ATENCIÓN (mañana y tarde)
+    # ⭐ HORARIOS RESTRINGIDOS A 12:30 PM - 3:30 PM PARA TODA CITA ⭐
     HORARIOS_ATENCION = [
-        '08:00:00', '09:00:00', '10:00:00', '11:00:00', '12:00:00',
         '12:30:00', '13:30:00', '14:30:00', '15:30:00'
     ]
     
-    # HORARIOS ESPECÍFICOS PARA TERAPIA VISUAL (tarde)
+    # Estos se usarán para la sección de Terapia Visual en el admin
     HORARIOS_TERAPIA_VISUAL = [
         '12:30:00', '13:30:00', '14:30:00', '15:30:00'
     ]
 
-# O si prefieres mantenerlo como variable global en app.py
-HORARIOS_DISPONIBLES = [
-    '08:00:00', '09:00:00', '10:00:00', '11:00:00', '12:00:00',
-    '12:30:00', '13:30:00', '14:30:00', '15:30:00'
-]
+    GABINETES = [
+        {'id': 1, 'nombre': 'Gabinete 1'},
+        {'id': 2, 'nombre': 'Gabinete 2'},
+        {'id': 3, 'nombre': 'Gabinete 3'},
+        {'id': 4, 'nombre': 'Gabinete 4'},
+        {'id': 5, 'nombre': 'Gabinete 5'},
+        {'id': 6, 'nombre': 'Gabinete 6'}
+    ]
+    
+    MOTIVOS_CITA = [
+        {'id': 1, 'descripcion': 'Lentes de Armazón'},
+        {'id': 2, 'descripcion': 'Lentes de Contacto'},
+        {'id': 3, 'descripcion': 'Terapia Visual'}
+    ]
+    
+    # Asume que esta variable existe en tu config.py
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///optometria.db'  
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    
 # Modelo Paciente
 class Paciente(db.Model):
     id_paciente = db.Column(db.Integer, primary_key=True)
@@ -642,15 +655,16 @@ def get_disponibilidad():
     
     disponibilidad = {}
     
-    # Asumimos que Config.HORARIOS_ATENCION está disponible (ej: ['12:30:00', '13:30:00', '14:30:00', '15:30:00'])
-    horarios_atencion = getattr(Config, 'HORARIOS_ATENCION', [])
+    # ⭐ USA HORARIOS RESTRINGIDOS ⭐
+    horarios_atencion = Config.HORARIOS_ATENCION
 
     for hora in horarios_atencion:
         # Corrección de lógica: Para que el paciente solo vea si la hora está disponible,
         # solo verificamos si ya se llenaron los 6 gabinetes para esa hora.
         citas_en_hora = Cita.query.filter_by(fecha=fecha_dt, hora=datetime.strptime(hora, '%H:%M:%S').time()).count()
 
-        if citas_en_hora < len(Config.GABINETES):
+        # Usar Config.GABINETES que ahora está definida
+        if citas_en_hora < len(Config.GABINETES): 
             disponibilidad[hora] = 'Disponible'
         else:
             disponibilidad[hora] = 'Ocupado'
@@ -1122,7 +1136,8 @@ def cancelar_serie_completa(serie_id):
         return jsonify({'message': 'Error al cancelar serie', 'error': str(e)}), 500
 
 
-# 📅 Ruta para obtener todas las citas (incluyendo recurrentes)
+# 📅 Rutas adicionales para cargar todas las citas
+
 @app.route('/api/citas/admin_completo', methods=['GET'])
 @login_required
 def get_citas_admin_completo():
@@ -1156,10 +1171,6 @@ def get_citas_admin_completo():
 def get_todas_citas():
     """Obtiene todas las citas de manera más eficiente"""
     try:
-        # Usar subquery para obtener todas las citas únicas
-        subquery = db.session.query(CitaRecurrenteDetalle.id_cita).subquery()
-        
-        # Citas que NO están en recurrentes + citas que SÍ están en recurrentes
         todas_citas = Cita.query.order_by(Cita.fecha, Cita.hora).all()
         
         print(f"📊 Total de citas cargadas: {len(todas_citas)}")
@@ -1171,7 +1182,7 @@ def get_todas_citas():
         return jsonify({'message': 'Error al cargar citas', 'error': str(e)}), 500
 
 
-# 📅 Ruta para verificar disponibilidad específica de terapia visual
+# 📅 Rutas para la gestión de disponibilidad de terapia visual
 @app.route('/api/terapia/disponibilidad', methods=['POST'])
 @login_required
 def get_disponibilidad_terapia():
@@ -1195,7 +1206,7 @@ def get_disponibilidad_terapia():
                 'message': 'No hay atención los fines de semana'
             }), 200
         
-        # Verificar disponibilidad
+        # Verificar disponibilidad (si la hora ya está ocupada en CUALQUIER gabinete)
         cita_existente = Cita.query.filter_by(fecha=fecha_dt, hora=hora_dt).first()
         
         if cita_existente:
@@ -1239,10 +1250,8 @@ def get_horarios_disponibles_terapia():
         citas_del_dia = Cita.query.filter_by(fecha=fecha_dt).all()
         horas_ocupadas = {str(cita.hora) for cita in citas_del_dia}
         
-        # Horarios específicos para terapia visual
-        horarios_terapia = [
-            '12:30:00', '13:30:00', '14:30:00', '15:30:00'
-        ]
+        # ⭐ USA HORARIOS RESTRINGIDOS ⭐
+        horarios_terapia = Config.HORARIOS_ATENCION
         
         # Filtrar horarios disponibles
         horarios_disponibles = [

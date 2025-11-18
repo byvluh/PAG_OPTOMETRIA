@@ -11,7 +11,6 @@
     />
   </head>
   <body>
-    <!-- Modal para detalles de cita -->
     <div id="appointment-modal" class="modal">
       <div class="modal-content">
         <div class="modal-header">
@@ -43,14 +42,15 @@
             </div>
             <div class="detail-row">
               <span class="detail-label">Notas:</span>
-              <span id="modal-notes">Examen de rutina para estudiante. Traer lentes anteriores si
-                los tiene.</span>
+              <span id="modal-notes"
+                >Examen de rutina para estudiante. Traer lentes anteriores si
+                los tiene.</span
+              >
             </div>
           </div>
           <div class="modal-actions">
             <button class="btn btn-primary">Editar Cita</button>
             <button class="btn btn-secondary">Imprimir</button>
-            <button class="btn btn-danger">Cancelar Cita</button>
           </div>
         </div>
       </div>
@@ -62,7 +62,6 @@
         <p class="subtitle">Clínica de Optometría Escolar</p>
       </header>
 
-      <!-- Navegación entre secciones -->
       <div class="admin-navigation">
         <button class="nav-btn active" onclick="showSection('dashboard')">
           Dashboard Principal
@@ -72,7 +71,97 @@
         </button>
       </div>
 
-      <!-- SECCIÓN DASHBOARD PRINCIPAL -->
+      <div
+        id="terapiaVisualSection"
+        class="admin-section"
+        style="display: none"
+      >
+        <div class="card">
+          <h2><i class="fas fa-eye"></i> Agendar Terapia Visual</h2>
+
+          <form id="terapiaVisualForm" class="terapia-form">
+            <div class="form-group">
+              <label for="terapiaNombre">Nombre del Paciente:</label>
+              <input
+                type="text"
+                id="terapiaNombre"
+                placeholder="Ej: Juan Pérez García"
+                required
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="terapiaEdad">Edad (opcional):</label>
+              <input
+                type="number"
+                id="terapiaEdad"
+                placeholder="Ej: 25"
+                min="1"
+                max="120"
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="terapiaTelefono">Teléfono (opcional):</label>
+              <input
+                type="tel"
+                id="terapiaTelefono"
+                placeholder="Ej: 555-123-4567"
+              />
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="terapiaFecha">Fecha de inicio:</label>
+                <input
+                  type="date"
+                  id="terapiaFecha"
+                  required
+                  pattern="\d{4}-\d{2}-\d{2}"
+                  placeholder="YYYY-MM-DD"
+                />
+              </div>
+
+              <div class="form-group">
+                <label for="terapiaHora">Hora:</label>
+                <select id="terapiaHora" required>
+                  <option value="">Selecciona hora</option>
+                  <option value="12:30:00">12:30 PM</option>
+                  <option value="13:30:00">1:30 PM</option>
+                  <option value="14:30:00">2:30 PM</option>
+                  <option value="15:30:00">3:30 PM</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="checkbox-label">
+                <input type="checkbox" id="terapiaRecurrente" checked />
+                <span class="checkmark"></span>
+                Programar citas recurrentes por 3 meses (mismo día y hora cada
+                semana)
+              </label>
+            </div>
+
+            <div class="form-group">
+              <label for="terapiaNotas">Notas adicionales:</label>
+              <textarea
+                id="terapiaNotas"
+                placeholder="Observaciones o detalles importantes..."
+                rows="3"
+              ></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-calendar-plus"></i> Agendar Terapia Visual
+            </button>
+          </form>
+
+          <div id="terapiaMessage" style="margin-top: 15px"></div>
+        </div>
+      </div>
+
+
       <div id="dashboardSection" class="admin-section">
         <div class="dashboard">
           <div class="card">
@@ -141,55 +230,7 @@
                 <div class="calendar-day">Vie</div>
                 <div class="calendar-day">Sáb</div>
 
-                <!-- Calendar dates -->
-                <div class="calendar-date other-month">26</div>
-                <div class="calendar-date other-month">27</div>
-                <div class="calendar-date other-month">28</div>
-                <div class="calendar-date other-month">29</div>
-                <div class="calendar-date other-month">30</div>
-                <div class="calendar-date other-month">31</div>
-                <div class="calendar-date">1</div>
-
-                <div class="calendar-date">2</div>
-                <div class="calendar-date">3</div>
-                <div class="calendar-date">4</div>
-                <div class="calendar-date">5</div>
-                <div class="calendar-date">6</div>
-                <div class="calendar-date">7</div>
-                <div class="calendar-date">8</div>
-
-                <div class="calendar-date">9</div>
-                <div class="calendar-date">10</div>
-                <div class="calendar-date">11</div>
-                <div class="calendar-date">12</div>
-                <div class="calendar-date">13</div>
-                <div class="calendar-date">14</div>
-                <div class="calendar-date">15</div>
-
-                <div class="calendar-date">16</div>
-                <div class="calendar-date">17</div>
-                <div class="calendar-date">18</div>
-                <div class="calendar-date">19</div>
-                <div class="calendar-date has-appointments selected">20</div>
-                <div class="calendar-date">21</div>
-                <div class="calendar-date">22</div>
-
-                <div class="calendar-date">23</div>
-                <div class="calendar-date">24</div>
-                <div class="calendar-date">25</div>
-                <div class="calendar-date">26</div>
-                <div class="calendar-date">27</div>
-                <div class="calendar-date">28</div>
-                <div class="calendar-date">29</div>
-
-                <div class="calendar-date">30</div>
-                <div class="calendar-date other-month">1</div>
-                <div class="calendar-date other-month">2</div>
-                <div class="calendar-date other-month">3</div>
-                <div class="calendar-date other-month">4</div>
-                <div class="calendar-date other-month">5</div>
-                <div class="calendar-date other-month">6</div>
-              </div>
+                </div>
 
               <div class="legend">
                 <div class="legend-dot"></div>
@@ -227,103 +268,6 @@
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td class="time-slot">☐ 08:00</td>
-                <td>
-                  <div
-                    class="appointment"
-                    data-patient="A. María García López"
-                    data-age="8"
-                    data-phone="555-0101"
-                    data-gabinete="1"
-                    data-time="08:00"
-                    data-status="programada"
-                  >
-                    <div class="patient-name">A. María García López</div>
-                    <div class="patient-info">Edad: 8</div>
-                    <span class="status programada">Programada</span>
-                  </div>
-                </td>
-                <td>
-                  <div
-                    class="appointment completed"
-                    data-patient="A. Juan Carlos Martínez"
-                    data-age="10"
-                    data-phone="555-0102"
-                    data-gabinete="2"
-                    data-time="08:00"
-                    data-status="completada"
-                  >
-                    <div class="patient-name">A. Juan Carlos Martí...</div>
-                    <div class="patient-info">Edad: 10</div>
-                    <span class="status completada">Completada</span>
-                  </div>
-                </td>
-                <td>Disponible</td>
-                <td>Disponible</td>
-                <td>Disponible</td>
-              </tr>
-              <tr>
-                <td class="time-slot">☐ 09:00</td>
-                <td>Disponible</td>
-                <td>Disponible</td>
-                <td>Disponible</td>
-                <td>Disponible</td>
-                <td>Disponible</td>
-              </tr>
-              <tr>
-                <td class="time-slot">☐ 10:00</td>
-                <td>Disponible</td>
-                <td>Disponible</td>
-                <td>Disponible</td>
-                <td>Disponible</td>
-                <td>Disponible</td>
-              </tr>
-              <tr>
-                <td class="time-slot">☐ 11:00</td>
-                <td>Disponible</td>
-                <td>
-                  <div
-                    class="appointment"
-                    data-patient="Luis Fernando Hernández"
-                    data-age="12"
-                    data-phone="555-0103"
-                    data-gabinete="2"
-                    data-time="11:00"
-                    data-status="programada"
-                  >
-                    <div class="patient-name">Luis Fernando Her...</div>
-                    <div class="patient-info">Edad: 12</div>
-                    <span class="status programada">Programada</span>
-                  </div>
-                </td>
-                <td>Disponible</td>
-                <td>Disponible</td>
-                <td>Disponible</td>
-              </tr>
-              <tr>
-                <td class="time-slot">☐ 12:00</td>
-                <td>Disponible</td>
-                <td>Disponible</td>
-                <td>
-                  <div
-                    class="appointment cancelled"
-                    data-patient="Marta Rodríguez Pérez"
-                    data-age="9"
-                    data-phone="555-0104"
-                    data-gabinete="3"
-                    data-time="12:00"
-                    data-status="cancelada"
-                  >
-                    <div class="patient-name">Marta Rodríguez P.</div>
-                    <div class="patient-info">Edad: 9</div>
-                    <span class="status cancelada">Cancelada</span>
-                  </div>
-                </td>
-                <td>Disponible</td>
-                <td>Disponible</td>
-              </tr>
-              <!-- NUEVOS HORARIOS AGREGADOS PARA TERAPIA VISUAL -->
               <tr>
                 <td class="time-slot">☐ 12:30</td>
                 <td>Disponible</td>
@@ -364,151 +308,8 @@
           <h2><i class="fas fa-users"></i> Detalles de Pacientes</h2>
 
           <div class="patient-cards">
-            <div
-              class="patient-card"
-              data-patient="Ana Sofía Rodríguez"
-              data-age="7"
-              data-phone="555-0103"
-              data-gabinete="3"
-              data-status="programada"
-            >
-              <div class="patient-card-header">
-                <div class="patient-card-name">Ana Sofía Rodríguez</div>
-                <div class="gabinete-badge">Gabinete 3</div>
-              </div>
-              <div class="patient-card-info">Edad: 7</div>
-              <div class="patient-card-info">Tel: 555-0103</div>
-              <span class="status programada">Programada</span>
-            </div>
-
-            <div
-              class="patient-card"
-              data-patient="Pedro Alejandro Sánchez"
-              data-age="9"
-              data-phone="555-0104"
-              data-gabinete="1"
-              data-status="programada"
-            >
-              <div class="patient-card-header">
-                <div class="patient-card-name">Pedro Alejandro Sánchez</div>
-                <div class="gabinete-badge">Gabinete 1</div>
-              </div>
-              <div class="patient-card-info">Edad: 9</div>
-              <div class="patient-card-info">Tel: 555-0104</div>
-              <span class="status programada">Programada</span>
-            </div>
-
-            <div
-              class="patient-card"
-              data-patient="Carmen Elena Jiménez"
-              data-age="11"
-              data-phone="555-0105"
-              data-gabinete="2"
-              data-status="programada"
-            >
-              <div class="patient-card-header">
-                <div class="patient-card-name">Carmen Elena Jiménez</div>
-                <div class="gabinete-badge">Gabinete 2</div>
-              </div>
-              <div class="patient-card-info">Edad: 11</div>
-              <div class="patient-card-info">Tel: 555-0105</div>
-              <span class="status programada">Programada</span>
-            </div>
+            <div class="no-appointments">No hay citas programadas para esta fecha</div>
           </div>
-        </div>
-      </div>
-
-      <!-- SECCIÓN TERAPIA VISUAL (OCULTA INICIALMENTE) -->
-      <div id="terapiaVisualSection" class="admin-section" style="display: none">
-        <div class="card">
-          <h2><i class="fas fa-eye"></i> Agendar Terapia Visual</h2>
-
-          <form id="terapiaVisualForm" class="terapia-form">
-            <div class="form-group">
-              <label for="terapiaNombre">Nombre del Paciente:</label>
-              <input
-                type="text"
-                id="terapiaNombre"
-                placeholder="Ej: Juan Pérez García"
-                required
-              />
-            </div>
-
-            <div class="form-group">
-              <label for="terapiaEdad">Edad (opcional):</label>
-              <input
-                type="number"
-                id="terapiaEdad"
-                placeholder="Ej: 25"
-                min="1"
-                max="120"
-              />
-            </div>
-
-            <div class="form-group">
-              <label for="terapiaTelefono">Teléfono (opcional):</label>
-              <input
-                type="tel"
-                id="terapiaTelefono"
-                placeholder="Ej: 555-123-4567"
-              />
-            </div>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label for="terapiaFecha">Fecha de inicio:</label>
-                <input
-                  type="date"
-                  id="terapiaFecha"
-                  required
-                  pattern="\d{4}-\d{2}-\d{2}"
-                  placeholder="YYYY-MM-DD"
-                />
-              </div>
-
-              <div class="form-group">
-                <label for="terapiaHora">Hora:</label>
-                <select id="terapiaHora" required>
-                  <option value="">Selecciona hora</option>
-                  <!-- Horarios de la mañana -->
-                  <option value="08:00:00">8:00 AM</option>
-                  <option value="09:00:00">9:00 AM</option>
-                  <option value="10:00:00">10:00 AM</option>
-                  <option value="11:00:00">11:00 AM</option>
-                  <option value="12:00:00">12:00 PM</option>
-                  <!-- Horarios de la tarde para terapia visual -->
-                  <option value="12:30:00">12:30 PM</option>
-                  <option value="13:30:00">1:30 PM</option>
-                  <option value="14:30:00">2:30 PM</option>
-                  <option value="15:30:00">3:30 PM</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label class="checkbox-label">
-                <input type="checkbox" id="terapiaRecurrente" checked />
-                <span class="checkmark"></span>
-                Programar citas recurrentes por 3 meses (mismo día y hora cada
-                semana)
-              </label>
-            </div>
-
-            <div class="form-group">
-              <label for="terapiaNotas">Notas adicionales:</label>
-              <textarea
-                id="terapiaNotas"
-                placeholder="Observaciones o detalles importantes..."
-                rows="3"
-              ></textarea>
-            </div>
-
-            <button type="submit" class="btn btn-primary">
-              <i class="fas fa-calendar-plus"></i> Agendar Terapia Visual
-            </button>
-          </form>
-
-          <div id="terapiaMessage" style="margin-top: 15px"></div>
         </div>
       </div>
     </div>

@@ -80,6 +80,13 @@ async function handleTerapiaVisualSubmit(event) {
         horaValor
     });
     
+    // Verificar disponibilidad final antes de enviar
+    const disponibilidad = await verificarDisponibilidadEnTiempoReal(fechaInput, horaValor);
+    if (!disponibilidad.disponible) {
+        alert(`❌ No se puede agendar: ${disponibilidad.message}`);
+        return;
+    }
+
     const recurrenteCheckbox = document.getElementById('terapiaRecurrente');
     const esRecurrente = recurrenteCheckbox ? recurrenteCheckbox.checked : true;
     
@@ -179,6 +186,9 @@ async function initializeAdminPanel() {
         
         // Pequeño delay para asegurar que el calendario se renderice
         setTimeout(() => {
+            // ⭐ LLAMADA CRÍTICA: Renderiza la cuadrícula y actualiza el encabezado
+            updateCalendar(); 
+            
             const todayElement = document.querySelector(`.calendar-date[data-date="${todayString}"]`);
             if (todayElement) {
                 document.querySelectorAll('.calendar-date').forEach(date => {
@@ -302,22 +312,162 @@ function initializeEventListeners() {
     // Nota: El binding de eventos se hace dentro de renderCalendarGrid
 }
 
+// ⭐ Lógica del formulario de Terapia Visual ⭐
+
+async function cargarHorariosDisponibles(fecha) {
+    try {
+        console.log(`📅 Cargando horarios disponibles para: ${fecha}`);
+        
+        const response = await fetch(`${API_BASE_URL}/api/terapia/horarios_disponibles`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({ fecha: fecha })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Error del servidor: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('🕒 Horarios disponibles:', data.horarios_disponibles);
+        
+        return data.horarios_disponibles;
+        
+    } catch (error) {
+        console.error('❌ Error cargando horarios:', error);
+        // Fallback a los horarios restringidos
+        return ['12:30:00', '13:30:00', '14:30:00', '15:30:00'];
+    }
+}
+
+function actualizarSelectHorarios(horariosDisponibles) {
+    const selectHora = document.getElementById('terapiaHora');
+    const horaSeleccionada = selectHora.value;
+    
+    // Guardar opción actual si existe
+    const opcionActual = horariosDisponibles.includes(horaSeleccionada) ? horaSeleccionada : '';
+    
+    // Limpiar select (mantener primera opción vacía)
+    selectHora.innerHTML = '<option value="">Selecciona hora</option>';
+    
+    // Mapeo de horas a formato legible
+    const formatoHora = {
+        '12:30:00': '12:30 PM',
+        '13:30:00': '1:30 PM',
+        '14:30:00': '2:30 PM',
+        '15:30:00': '3:30 PM'
+    };
+    
+    // Agregar horarios disponibles
+    horariosDisponibles.forEach(hora => {
+        const option = document.createElement('option');
+        option.value = hora;
+        option.textContent = formatoHora[hora] || hora;
+        selectHora.appendChild(option);
+    });
+    
+    // Restaurar selección anterior si sigue disponible
+    if (opcionActual && horariosDisponibles.includes(opcionActual)) {
+        selectHora.value = opcionActual;
+    }
+    
+    // Mostrar mensaje si no hay horarios disponibles
+    const messageEl = document.getElementById('terapiaMessage');
+    if (horariosDisponibles.length === 0) {
+        messageEl.innerHTML = `<div style="color: #856404; background: #fff3cd; padding: 10px; border-radius: 5px;">
+            ⚠️ No hay horarios disponibles para esta fecha. Por favor selecciona otra fecha.
+        </div>`;
+    } else {
+        messageEl.innerHTML = '';
+    }
+}
+
+async function verificarDisponibilidadEnTiempoReal(fecha, hora) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/terapia/disponibilidad`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({ 
+                fecha: fecha,
+                hora: hora 
+            })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            return data;
+        } else {
+            throw new Error('Error verificando disponibilidad');
+        }
+        
+    } catch (error) {
+        console.error('❌ Error verificando disponibilidad:', error);
+        return { disponible: true, message: 'Asumiendo disponible por error de conexión' };
+    }
+}
+
 function setupTerapiaVisualForm() {
     const terapiaForm = document.getElementById('terapiaVisualForm');
     if (!terapiaForm) return;
     
-    // Establecer fecha mínima como hoy
     const fechaInput = document.getElementById('terapiaFecha');
+    const horaSelect = document.getElementById('terapiaHora');
+    const messageEl = document.getElementById('terapiaMessage');
+    
     if (fechaInput) {
+        // Establecer fecha mínima como hoy
         const today = new Date().toISOString().split('T')[0];
         fechaInput.min = today;
         fechaInput.value = today;
+        
+        // Cargar horarios disponibles al cambiar fecha
+        fechaInput.addEventListener('change', async function() {
+            const fecha = this.value;
+            if (fecha) {
+                messageEl.innerHTML = '<div style="color: #856404; background: #fff3cd; padding: 10px; border-radius: 5px;">Cargando horarios disponibles...</div>';
+                
+                const horariosDisponibles = await cargarHorariosDisponibles(fecha);
+                actualizarSelectHorarios(horariosDisponibles);
+            }
+        });
+        
+        // Cargar horarios disponibles inicialmente
+        setTimeout(async () => {
+            const horariosDisponibles = await cargarHorariosDisponibles(fechaInput.value);
+            actualizarSelectHorarios(horariosDisponibles);
+        }, 500);
+    }
+    
+    // Verificar disponibilidad al cambiar hora
+    if (horaSelect) {
+        horaSelect.addEventListener('change', async function() {
+            const fecha = fechaInput.value;
+            const hora = this.value;
+            
+            if (fecha && hora) {
+                const disponibilidad = await verificarDisponibilidadEnTiempoReal(fecha, hora);
+                
+                if (!disponibilidad.disponible) {
+                    messageEl.innerHTML = `<div style="color: #721c24; background: #f8d7da; padding: 10px; border-radius: 5px;">
+                        ❌ ${disponibilidad.message}
+                    </div>`;
+                } else {
+                    messageEl.innerHTML = `<div style="color: #155724; background: #d4edda; padding: 10px; border-radius: 5px;">
+                        ✅ ${disponibilidad.message}
+                    </div>`;
+                }
+            }
+        });
     }
 }
+// ⭐ Fin Lógica del formulario de Terapia Visual ⭐
 
-// ⭐⭐ NO MODIFICAR: La lógica de handleTerapiaVisualSubmit se movió al inicio
-
-// ==================== FUNCIONES DE LA API CORREGIDAS ====================
 
 // ==================== FUNCIONES DE LA API CORREGIDAS ====================
 
@@ -325,7 +475,6 @@ async function loadCitas() {
     try {
         console.log('📅 Cargando citas desde API (incluyendo recurrentes)...');
         
-        // Intentar primero la ruta NUEVA con todas las citas
         let response = await fetch(`${API_BASE_URL}/api/citas/todas`, {
             method: 'GET',
             credentials: 'include',
@@ -377,7 +526,6 @@ async function loadCitas() {
         const fechasUnicas = [...new Set(citasConFecha.map(c => c.fecha))];
         console.log('📅 Fechas con citas:', fechasUnicas);
         
-        // Verificar si hay citas recurrentes
         const hoy = new Date().toISOString().split('T')[0];
         const citasHoy = allCitas.filter(c => c.fecha === hoy);
         console.log(`📋 Citas para hoy (${hoy}):`, citasHoy.length);
@@ -425,7 +573,7 @@ function getDemoCitasConRecurrentes() {
         {
             id_cita: 2,
             fecha: nextWeekStr,
-            hora: '12:30:00',
+            hora: '13:30:00',
             paciente: { nombre: 'María', apellido: 'García López', edad: 25, telefono: '555-0101' },
             motivo: 'Terapia Visual',
             gabinete: 'Gabinete 2',
@@ -435,7 +583,7 @@ function getDemoCitasConRecurrentes() {
         {
             id_cita: 3,
             fecha: twoWeeksStr,
-            hora: '12:30:00',
+            hora: '14:30:00',
             paciente: { nombre: 'María', apellido: 'García López', edad: 25, telefono: '555-0101' },
             motivo: 'Terapia Visual',
             gabinete: 'Gabinete 3',
@@ -446,7 +594,7 @@ function getDemoCitasConRecurrentes() {
         {
             id_cita: 4,
             fecha: hoy,
-            hora: '13:30:00',
+            hora: '15:30:00',
             paciente: { nombre: 'Juan Carlos', apellido: 'Martínez Rodríguez', edad: 30, telefono: '555-0102' },
             motivo: 'Lentes de contacto',
             gabinete: 'Gabinete 2',
@@ -593,7 +741,7 @@ function markDaysWithAppointments() {
 function initializeCalendarEvents() {
     // Re-bindear eventos al actualizar el calendario
     // Solo necesitamos los días del mes actual
-    const calendarDates = document.querySelectorAll('.calendar-grid .calendar-date:not(.other-month)');
+    const calendarDates = document.querySelectorAll('.calendar-grid .calendar-date:not(.other-month):not(.weekend)');
     calendarDates.forEach(date => {
         // Eliminar listeners antiguos para evitar duplicados
         date.removeEventListener('click', handleDateSelectionWrapper); 
@@ -642,9 +790,7 @@ function updateSelectedDate(date) {
         `<i class="fas fa-clock"></i> Horario del día - ${formattedDate}`;
 }
 
-// ==================== TABLA DE HORARIOS CON DATOS REALES ====================
-
-// ==================== TABLA DE HORARIOS MEJORADA ====================
+// ==================== TABLA DE HORARIOS MEJORADA (SOLO TARDE) ====================
 
 function updateScheduleForDate(date) {
     // Formato 'YYYY-MM-DD' para comparar con la BD
@@ -653,18 +799,12 @@ function updateScheduleForDate(date) {
     
     console.log(`🕒 Actualizando horario para ${dateString}:`, citasDelDia.length, 'citas');
     
-    // DEBUG: Mostrar información detallada
-    citasDelDia.forEach(cita => {
-        console.log(`   📋 Cita ${cita.id_cita}: ${cita.hora} - ${cita.gabinete} - ${cita.paciente.nombre}`);
-    });
-    
     // Limpiar toda la tabla primero
     const tableCells = document.querySelectorAll('.schedule-table td');
     tableCells.forEach(cell => {
         if (!cell.classList.contains('time-slot')) {
             cell.innerHTML = 'Disponible';
             cell.classList.remove('has-appointment', 'completed', 'cancelled', 'programada', 'no-asistió');
-            // Quitar listeners (limpieza importante)
             const oldAppointment = cell.querySelector('.appointment');
             if(oldAppointment) oldAppointment.removeEventListener('click', showAppointmentDetails);
         }
@@ -678,36 +818,24 @@ function updateScheduleForDate(date) {
         }
 
         const hora = cita.hora.substring(0, 5);
-        // Extraer número de gabinete (ej: "Gabinete 3" -> 3)
         const gabineteMatch = cita.gabinete ? cita.gabinete.match(/\d+/) : null;
         const gabineteNum = gabineteMatch ? parseInt(gabineteMatch[0]) : 0;
         
-        console.log(`   🎯 Procesando cita: Hora ${hora}, Gabinete ${gabineteNum}`);
-        
-        if (gabineteNum >= 1 && gabineteNum <= 5) { // Solo gabinetes 1-5 para la tabla de ejemplo
+        if (gabineteNum >= 1 && gabineteNum <= 5) { 
             const timeSlotRow = findTimeSlotRow(hora);
             if (timeSlotRow) {
                 const gabineteCell = timeSlotRow.cells[gabineteNum];
-                if (gabineteCell) { // Asegurar que la celda existe
-                    console.log(`   ✅ Asignando cita a celda: Fila ${hora}, Columna ${gabineteNum}`);
+                if (gabineteCell) { 
                     gabineteCell.innerHTML = createAppointmentHTML(cita);
                     const statusClass = cita.estado ? cita.estado.toLowerCase().replace(' ', '-') : 'programada';
                     gabineteCell.classList.add('has-appointment', statusClass);
                     
-                    // Agregar event listener
                     const appointmentElement = gabineteCell.querySelector('.appointment');
                     if (appointmentElement) {
-                        // Usar una función anónima para pasar la cita, evitando problemas con re-binding
                         appointmentElement.addEventListener('click', () => showAppointmentDetails(cita));
                     }
-                } else {
-                    console.warn(`❌ Celda de gabinete ${gabineteNum} no encontrada en fila ${hora}`);
-                }
-            } else {
-                console.warn(`❌ Fila para hora ${hora} no encontrada en la tabla`);
-            }
-        } else {
-            console.warn(`⚠️ Gabinete fuera de rango: ${gabineteNum} (cita ${cita.id_cita})`);
+                } 
+            } 
         }
     });
     
@@ -726,7 +854,6 @@ function findTimeSlotRow(hora) {
             return row;
         }
     }
-    console.warn(`❌ No se encontró fila para la hora: ${hora}`);
     return null;
 }
 
@@ -933,6 +1060,7 @@ function showEditModal(cita) {
                             <label for="edit-motivo-modificacion"><i class="fas fa-clipboard-list"></i> Motivo de la Modificación:</label>
                             <select id="edit-motivo-modificacion" required>
                                 <option value="">Selecciona el motivo</option>
+                                <option value="Completada">Completada</option>
                                 <option value="Solicitud del paciente">Solicitud del paciente</option>
                                 <option value="Disponibilidad de gabinete">Disponibilidad de gabinete</option>
                                 <option value="Conflicto de horario">Conflicto de horario</option>
@@ -1089,21 +1217,6 @@ function debugCitasCompleto() {
     alert(`Diagnóstico:\nTotal citas: ${allCitas.length}\nCitas hoy: ${citasHoy.length}\nRevisa la consola para más detalles`);
 }
 
-// Agregar botón de debug al panel (opcional)
-
-// Llamar en la inicialización
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Iniciando panel de administración...');
-    initializeAdminPanel();
-    agregarBotonDebug(); // Agregar botón de debug
-    
-    // Asignar evento al formulario de terapia visual
-    const terapiaForm = document.getElementById('terapiaVisualForm');
-    if (terapiaForm) {
-        terapiaForm.addEventListener('submit', handleTerapiaVisualSubmit);
-    }
-});
-
 async function handleEditFormSubmit(event) {
     event.preventDefault();
     
@@ -1198,271 +1311,6 @@ async function handleEditFormSubmit(event) {
     }
 }
 
-// ==================== FUNCIONALIDAD MEJORADA PARA TERAPIA VISUAL ====================
-
-// Función para cargar horarios disponibles dinámicamente
-async function cargarHorariosDisponibles(fecha) {
-    try {
-        console.log(`📅 Cargando horarios disponibles para: ${fecha}`);
-        
-        const response = await fetch(`${API_BASE_URL}/api/terapia/horarios_disponibles`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            credentials: 'include',
-            body: JSON.stringify({ fecha: fecha })
-        });
-        
-        if (!response.ok) {
-            throw new Error(`Error del servidor: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        console.log('🕒 Horarios disponibles:', data.horarios_disponibles);
-        
-        return data.horarios_disponibles;
-        
-    } catch (error) {
-        console.error('❌ Error cargando horarios:', error);
-        // En caso de error, retornar horarios por defecto
-        return ['12:30:00', '13:30:00', '14:30:00', '15:30:00'];
-    }
-}
-
-// Función para actualizar el select de horarios
-function actualizarSelectHorarios(horariosDisponibles) {
-    const selectHora = document.getElementById('terapiaHora');
-    const horaSeleccionada = selectHora.value;
-    
-    // Guardar opción actual si existe
-    const opcionActual = horariosDisponibles.includes(horaSeleccionada) ? horaSeleccionada : '';
-    
-    // Limpiar select (mantener primera opción vacía)
-    selectHora.innerHTML = '<option value="">Selecciona hora</option>';
-    
-    // Mapeo de horas a formato legible
-    const formatoHora = {
-        '08:00:00': '8:00 AM',
-        '09:00:00': '9:00 AM', 
-        '10:00:00': '10:00 AM',
-        '11:00:00': '11:00 AM',
-        '12:00:00': '12:00 PM',
-        '12:30:00': '12:30 PM',
-        '13:30:00': '1:30 PM',
-        '14:30:00': '2:30 PM',
-        '15:30:00': '3:30 PM'
-    };
-    
-    // Agregar horarios disponibles
-    horariosDisponibles.forEach(hora => {
-        const option = document.createElement('option');
-        option.value = hora;
-        option.textContent = formatoHora[hora] || hora;
-        selectHora.appendChild(option);
-    });
-    
-    // Restaurar selección anterior si sigue disponible
-    if (opcionActual && horariosDisponibles.includes(opcionActual)) {
-        selectHora.value = opcionActual;
-    }
-    
-    // Mostrar mensaje si no hay horarios disponibles
-    const messageEl = document.getElementById('terapiaMessage');
-    if (horariosDisponibles.length === 0) {
-        messageEl.innerHTML = `<div style="color: #856404; background: #fff3cd; padding: 10px; border-radius: 5px;">
-            ⚠️ No hay horarios disponibles para esta fecha. Por favor selecciona otra fecha.
-        </div>`;
-    } else {
-        messageEl.innerHTML = '';
-    }
-}
-
-// Función para verificar disponibilidad en tiempo real
-async function verificarDisponibilidadEnTiempoReal(fecha, hora) {
-    try {
-        const response = await fetch(`${API_BASE_URL}/api/terapia/disponibilidad`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            credentials: 'include',
-            body: JSON.stringify({ 
-                fecha: fecha,
-                hora: hora 
-            })
-        });
-        
-        if (response.ok) {
-            const data = await response.json();
-            return data;
-        } else {
-            throw new Error('Error verificando disponibilidad');
-        }
-        
-    } catch (error) {
-        console.error('❌ Error verificando disponibilidad:', error);
-        return { disponible: true, message: 'Asumiendo disponible por error de conexión' };
-    }
-}
-
-// Configuración mejorada del formulario de terapia visual
-function setupTerapiaVisualForm() {
-    const terapiaForm = document.getElementById('terapiaVisualForm');
-    if (!terapiaForm) return;
-    
-    const fechaInput = document.getElementById('terapiaFecha');
-    const horaSelect = document.getElementById('terapiaHora');
-    const messageEl = document.getElementById('terapiaMessage');
-    
-    if (fechaInput) {
-        // Establecer fecha mínima como hoy
-        const today = new Date().toISOString().split('T')[0];
-        fechaInput.min = today;
-        fechaInput.value = today;
-        
-        // Cargar horarios disponibles al cambiar fecha
-        fechaInput.addEventListener('change', async function() {
-            const fecha = this.value;
-            if (fecha) {
-                messageEl.innerHTML = '<div style="color: #856404; background: #fff3cd; padding: 10px; border-radius: 5px;">Cargando horarios disponibles...</div>';
-                
-                const horariosDisponibles = await cargarHorariosDisponibles(fecha);
-                actualizarSelectHorarios(horariosDisponibles);
-            }
-        });
-        
-        // Cargar horarios disponibles inicialmente
-        setTimeout(async () => {
-            const horariosDisponibles = await cargarHorariosDisponibles(fechaInput.value);
-            actualizarSelectHorarios(horariosDisponibles);
-        }, 500);
-    }
-    
-    // Verificar disponibilidad al cambiar hora
-    if (horaSelect) {
-        horaSelect.addEventListener('change', async function() {
-            const fecha = fechaInput.value;
-            const hora = this.value;
-            
-            if (fecha && hora) {
-                const disponibilidad = await verificarDisponibilidadEnTiempoReal(fecha, hora);
-                
-                if (!disponibilidad.disponible) {
-                    messageEl.innerHTML = `<div style="color: #721c24; background: #f8d7da; padding: 10px; border-radius: 5px;">
-                        ❌ ${disponibilidad.message}
-                    </div>`;
-                } else {
-                    messageEl.innerHTML = `<div style="color: #155724; background: #d4edda; padding: 10px; border-radius: 5px;">
-                        ✅ ${disponibilidad.message}
-                    </div>`;
-                }
-            }
-        });
-    }
-}
-
-// Función de envío mejorada con validación de disponibilidad
-async function handleTerapiaVisualSubmit(event) {
-    event.preventDefault();
-    
-    console.log("🔄 Iniciando envío de terapia visual...");
-    
-    // Obtener y validar datos
-    const nombrePaciente = document.getElementById('terapiaNombre').value;
-    const fechaInput = document.getElementById('terapiaFecha').value;
-    const horaSelect = document.getElementById('terapiaHora');
-    const horaValor = horaSelect.options[horaSelect.selectedIndex].value;
-    
-    if (!nombrePaciente || !fechaInput || !horaValor) {
-        alert('Por favor completa todos los campos requeridos');
-        return;
-    }
-    
-    // Verificar disponibilidad final antes de enviar
-    const disponibilidad = await verificarDisponibilidadEnTiempoReal(fechaInput, horaValor);
-    if (!disponibilidad.disponible) {
-        alert(`❌ No se puede agendar: ${disponibilidad.message}`);
-        return;
-    }
-    
-    const recurrenteCheckbox = document.getElementById('terapiaRecurrente');
-    const esRecurrente = recurrenteCheckbox ? recurrenteCheckbox.checked : true;
-    
-    const formData = {
-        nombre_paciente: nombrePaciente,
-        fecha_inicio: fechaInput,
-        hora: horaValor,
-        edad: document.getElementById('terapiaEdad').value || null,
-        telefono: document.getElementById('terapiaTelefono').value || null,
-        notas: document.getElementById('terapiaNotas').value || '',
-        es_recurrente: esRecurrente
-    };
-    
-    const messageEl = document.getElementById('terapiaMessage');
-    messageEl.innerHTML = '<div style="color: #856404; background: #fff3cd; padding: 10px; border-radius: 5px;">Agendando terapia visual...</div>';
-    
-    try {
-        console.log("📤 Enviando solicitud al servidor...");
-        
-        const response = await fetch(`${API_BASE_URL}/api/citas/agendar_terapia`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            credentials: 'include',
-            body: JSON.stringify(formData)
-        });
-        
-        console.log(`📡 Respuesta del servidor: ${response.status}`);
-        
-        const data = await response.json();
-        console.log("📨 Datos de respuesta:", data);
-        
-        if (response.ok) {
-            let mensajeExito = `✅ Terapia visual agendada exitosamente para ${formData.nombre_paciente}`;
-            
-            if (esRecurrente && data.total_citas) {
-                mensajeExito += `<br>📅 Se crearon ${data.total_citas} citas hasta el ${data.fecha_fin}`;
-            }
-            
-            messageEl.innerHTML = `<div style="color: #155724; background: #d4edda; padding: 10px; border-radius: 5px;">
-                ${mensajeExito}
-            </div>`;
-            
-            // Limpiar formulario
-            document.getElementById('terapiaVisualForm').reset();
-            
-            // Restaurar fecha actual y recargar horarios
-            const today = new Date().toISOString().split('T')[0];
-            const fechaInputEl = document.getElementById('terapiaFecha');
-            if (fechaInputEl) {
-                fechaInputEl.value = today;
-                // Recargar horarios disponibles
-                const horariosDisponibles = await cargarHorariosDisponibles(today);
-                actualizarSelectHorarios(horariosDisponibles);
-            }
-            
-            // Actualizar estadísticas y calendario
-            await loadCitas();
-            updateStats();
-            updateCalendar();
-            
-        } else {
-            console.error("❌ Error del servidor:", data);
-            messageEl.innerHTML = `<div style="color: #721c24; background: #f8d7da; padding: 10px; border-radius: 5px;">
-                ❌ Error: ${data.message || 'Error desconocido del servidor'}
-            </div>`;
-        }
-        
-    } catch (error) {
-        console.error('💥 Error de conexión:', error);
-        messageEl.innerHTML = `<div style="color: #721c24; background: #f8d7da; padding: 10px; border-radius: 5px;">
-            ❌ Error de conexión con el servidor: ${error.message}
-        </div>`;
-    }
-}
-
 function printAppointment() {
     const patientName = document.getElementById('modal-patient-name').textContent;
     const details = `
@@ -1553,60 +1401,6 @@ function getStatusClass(estado) {
     }
 }
 
-// Función de debug
-/* function debugCitas() {
-    console.log('=== DEBUG CITAS ===');
-    console.log('Total de citas:', allCitas.length);
-    console.log('Citas:', allCitas);
-    
-    // Verificar estructura de cada cita
-    allCitas.forEach((cita, index) => {
-        console.log(`Cita ${index + 1}:`, {
-            id: cita.id_cita,
-            fecha: cita.fecha,
-            hora: cita.hora,
-            paciente: cita.paciente,
-            motivo: cita.motivo,
-            gabinete: cita.gabinete,
-            estado: cita.estado
-        });
-    });
-} */
-
-// Datos de demo para cuando la API no esté disponible
-function getDemoCitas() {
-    const today = new Date().toISOString().split('T')[0];
-    return [
-        {
-            id_cita: 1,
-            fecha: today,
-            hora: '12:30:00',
-            paciente: { nombre: 'María', apellido: 'García López', edad: 25, telefono: '555-0101' },
-            motivo: 'Lentes graduados de armazón',
-            gabinete: 'Gabinete 1',
-            estado: 'Programada'
-        },
-        {
-            id_cita: 2,
-            fecha: today,
-            hora: '13:30:00',
-            paciente: { nombre: 'Juan Carlos', apellido: 'Martínez Rodríguez', edad: 30, telefono: '555-0102' },
-            motivo: 'Lentes de contacto',
-            gabinete: 'Gabinete 2',
-            estado: 'Programada'
-        },
-         {
-            id_cita: 3,
-            fecha: today,
-            hora: '12:30:00',
-            paciente: { nombre: 'Laura', apellido: 'Perez Diaz', edad: 40, telefono: '555-0103' },
-            motivo: 'Lentes de contacto',
-            gabinete: 'Gabinete 3',
-            estado: 'Completada'
-        },
-    ];
-}
-
 // Función para generar la cuadrícula del calendario dinámicamente
 function renderCalendarGrid() {
     const grid = document.querySelector('.calendar-grid');
@@ -1633,6 +1427,8 @@ function renderCalendarGrid() {
     for (let x = firstDayIndex; x > 0; x--) {
         const dayDiv = document.createElement('div');
         dayDiv.classList.add('calendar-date', 'other-month');
+        
+        // ⭐ NO APLICA GUION A DÍAS DE OTRO MES, SOLO AL ACTUAL ⭐
         dayDiv.textContent = prevLastDay - x + 1;
         grid.appendChild(dayDiv);
     }
@@ -1643,16 +1439,26 @@ function renderCalendarGrid() {
 
     for (let i = 1; i <= lastDay; i++) {
         const dayDiv = document.createElement('div');
-        dayDiv.textContent = i;
         dayDiv.classList.add('calendar-date');
         
-        // Crear la fecha del día para comparación y data-attribute
         const dayDate = new Date(year, month, i);
+        const dayOfWeek = dayDate.getDay(); // 0 (Dom) a 6 (Sáb)
         const dateString = dayDate.toISOString().split('T')[0];
         
-        // Añadir data attributes para facilitar la selección y marcado de citas
+        // Añadir data attributes
         dayDiv.setAttribute('data-day', i);
         dayDiv.setAttribute('data-date', dateString);
+        
+        // ⭐ CÓDIGO DE CORRECCIÓN: Mostrar guion en Sábados (6) y Domingos (0) ⭐
+        if (dayOfWeek === 0 || dayOfWeek === 6) { 
+            dayDiv.textContent = '-';
+            dayDiv.classList.add('weekend'); // Agregamos una clase para CSS
+            dayDiv.style.cursor = 'not-allowed';
+        } else {
+            dayDiv.textContent = i;
+        }
+        // ⭐ FIN CÓDIGO DE CORRECCIÓN ⭐
+        
         
         // Si es hoy, marcarlo
         if (dayDate.setHours(0, 0, 0, 0) === today.getTime()) {
