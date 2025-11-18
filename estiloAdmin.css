@@ -36,6 +36,30 @@ header {
     border-bottom: 2px solid var(--light-gray);
 }
 
+/* Agregar esto en el archivo estiloAdmin.css, preferiblemente después de los estilos del header existentes */
+
+header {
+    background-color: var(--primary);
+    color: white;
+    padding: 25px 20px;
+    margin-bottom: 30px;
+    border-bottom: none;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+header h1 {
+    color: white;
+    margin-bottom: 8px;
+    font-size: 2.2rem;
+}
+
+header .subtitle {
+    color: var(--secondary);
+    font-size: 1.2rem;
+    font-weight: 500;
+}
+
 h1 {
     color: var(--primary);
     margin-bottom: 10px;
