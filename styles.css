@@ -8,7 +8,9 @@ body {
     flex-direction: column;
     min-height: 100vh; /* Ocupar el 100% de la altura de la ventana */
     margin: 0;
+    font-size: 18px;
 }
+
 main {
     flex: 1; /* Esto empuja el footer hacia abajo */
     /* Tus otros estilos del main (si tienes) pueden ir aquí */
@@ -34,17 +36,22 @@ header img {
 h1 {
     color: var(--primary);
     margin-bottom: 10px;
-    font-size: 2.2rem;
+    font-size: 2.5rem;
+}
+
+h2 {
+  font-size: 2rem; /* Aumentado para mejor visibilidad */
+  margin-bottom: 15px;
 }
 
 .subtitle {
     color: var(--gray);
-    font-size: 1.2rem;
+    font-size: 1.4rem;
     font-weight: 500;
 }
 
 p {
-  font-size: 1em;
+  font-size: 1.1em;
   font-weight: normal;
   color: #274e3b;
 }
@@ -58,6 +65,7 @@ p {
   border-radius: 15px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
   text-align: center;
+  font-size: 18px;
 }
 
 .step-indicator {
@@ -122,9 +130,9 @@ p {
 }
 
 .option {
-  padding: 15px 25px;
+  padding: 18px 30px;
   border: 2px solid #274e3b;
-  font-size: 1em;
+  font-size: 1.1em;
   background: #f3f8f4;
   color: #1a2d22;
   border-radius: 10px;
@@ -158,10 +166,11 @@ button {
   background: #274e3b;
   color: white;
   border: none;
-  padding: 10px 25px;
+  padding: 12px 30px;
   border-radius: 8px;
   cursor: pointer;
   transition: 0.3s;
+  font-size: 1.1em;
 }
 
 button:hover {
@@ -197,10 +206,11 @@ button:hover {
 }
 
 .calendar div {
-  padding: 10px;
+  padding: 12px;
   border-radius: 8px;
   cursor: pointer;
   background: #f1f5f2;
+  font-size: 1.1em;
 }
 
 .calendar div.header {
@@ -232,9 +242,10 @@ button:hover {
 .time-slot {
   border: 2px solid #274e3b;
   border-radius: 8px;
-  padding: 10px 15px;
+  padding: 12px 35px;
   cursor: pointer;
   background: #f3f8f4;
+  font-size: 1.1em;
 }
 
 .time-slot.selected {
@@ -272,11 +283,11 @@ footer {
     align-items: center;
 }
 input {
-    padding: 10px;
+    padding: 12px 15px !important;
     width: 80%;
     border: 1px solid #cbd5ce;
     border-radius: 6px;
-    font-size: 15px;
+    font-size: 18px !important;
 }
 
 
@@ -315,8 +326,8 @@ input {
 .detail {
   background-color: #f3f5f3;
   border-radius: 10px;
-  padding: 10px 15px;
-  font-size: 0.95rem;
+  padding: 12px 18px;
+  font-size: 1.05rem;
 }
 
 .detail strong {
@@ -325,8 +336,8 @@ input {
 
 .message {
   color: #333;
-  font-size: 0.9rem;
-  line-height: 1.4;
+  font-size: 1rem;
+  line-height: 1.5;
   margin-bottom: 20px;
 }
 

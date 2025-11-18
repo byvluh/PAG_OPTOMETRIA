@@ -20,8 +20,12 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // funcion de navegacion
+// ==================== NAVEGACIÓN CORREGIDA ====================
+
 function showSection(sectionName) {
-    // Ocultar todas las secciones
+    console.log(`🔄 Mostrando sección: ${sectionName}`);
+    
+    // Ocultar todas las secciones admin
     document.querySelectorAll('.admin-section').forEach(section => {
         section.style.display = 'none';
     });
@@ -31,13 +35,22 @@ function showSection(sectionName) {
         btn.classList.remove('active');
     });
     
-    // Mostrar sección seleccionada y activar botón
-    document.getElementById(sectionName + 'Section').style.display = 'block';
-    // Determinar qué botón fue clickeado (mejorado)
-    const clickedButton = Array.from(document.querySelectorAll('.nav-btn')).find(btn => btn.textContent.toLowerCase().includes(sectionName.toLowerCase()));
-    if(clickedButton) {
+    // Mostrar la sección seleccionada
+    const targetSection = document.getElementById(sectionName + 'Section');
+    if (targetSection) {
+        targetSection.style.display = 'block';
+    }
+    
+    // Activar el botón correspondiente
+    const clickedButton = Array.from(document.querySelectorAll('.nav-btn')).find(btn => 
+        btn.textContent.toLowerCase().includes(sectionName.toLowerCase())
+    );
+    
+    if (clickedButton) {
         clickedButton.classList.add('active');
     }
+    
+    console.log(`✅ Sección ${sectionName} mostrada correctamente`);
 }
 
 async function handleTerapiaVisualSubmit(event) {
@@ -140,6 +153,7 @@ async function handleTerapiaVisualSubmit(event) {
     }
 }
 
+// En la función initializeAdminPanel, asegurar que se llame setupTerapiaVisualForm
 async function initializeAdminPanel() {
    try {
         console.log('🔧 Inicializando panel de administración...');
@@ -155,23 +169,29 @@ async function initializeAdminPanel() {
         await loadCitas();
         initializeEventListeners();
         
-        // ⭐ LLAMADA CRÍTICA: Renderiza la cuadrícula y actualiza el encabezado
-        updateCalendar(); 
+        // ⭐ INICIALIZAR CON DASHBOARD PRINCIPAL VISIBLE
+        showSection('dashboard');
         
         const today = new Date();
         const todayString = today.toISOString().split('T')[0];
         
-        // Seleccionar la fecha de hoy por defecto si está visible
         selectedCalendarDate = today;
-        const todayElement = document.querySelector(`.calendar-date[data-date="${todayString}"]`);
-        if(todayElement) {
-             todayElement.classList.add('selected');
-        } 
         
-        updateSelectedDate(selectedCalendarDate);
-        updateStats();
-        updateScheduleForDate(selectedCalendarDate);
-        updatePatientCardsForDate(selectedCalendarDate);
+        // Pequeño delay para asegurar que el calendario se renderice
+        setTimeout(() => {
+            const todayElement = document.querySelector(`.calendar-date[data-date="${todayString}"]`);
+            if (todayElement) {
+                document.querySelectorAll('.calendar-date').forEach(date => {
+                    date.classList.remove('selected');
+                });
+                todayElement.classList.add('selected');
+            }
+            
+            updateSelectedDate(selectedCalendarDate);
+            updateStats();
+            updateScheduleForDate(selectedCalendarDate);
+            updatePatientCardsForDate(selectedCalendarDate);
+        }, 300);
         
         setupTerapiaVisualForm();
         
@@ -179,10 +199,8 @@ async function initializeAdminPanel() {
         
     } catch (error) {
         console.error('❌ Error inicializando panel:', error);
-        // Evitamos alertar dos veces si checkAuth ya redirigió
     }
 }
-
 // ==================== VERIFICACIÓN DE SESIÓN CORREGIDA ====================
 
 async function checkAuth() {
@@ -243,13 +261,25 @@ async function checkAuth() {
     }
 }
 
+
 function initializeEventListeners() {
     // Navegación del calendario
-    document.getElementById('prev-month').addEventListener('click', previousMonth);
-    document.getElementById('next-month').addEventListener('click', nextMonth);
+    const prevMonthBtn = document.getElementById('prev-month');
+    const nextMonthBtn = document.getElementById('next-month');
+    
+    if (prevMonthBtn) {
+        prevMonthBtn.addEventListener('click', previousMonth);
+    }
+    if (nextMonthBtn) {
+        nextMonthBtn.addEventListener('click', nextMonth);
+    }
     
     // Cerrar modal
-    document.querySelector('#appointment-modal .close').addEventListener('click', closeModal);
+    const closeModalBtn = document.querySelector('#appointment-modal .close');
+    if (closeModalBtn) {
+        closeModalBtn.addEventListener('click', closeModal);
+    }
+    
     window.addEventListener('click', function(event) {
         if (event.target === document.getElementById('appointment-modal')) {
             closeModal();
@@ -257,9 +287,16 @@ function initializeEventListeners() {
     });
     
     // Botones del modal
-    document.querySelector('.modal-actions .btn-primary').addEventListener('click', editAppointment);
-    document.querySelector('.modal-actions .btn-secondary').addEventListener('click', printAppointment);
-    document.querySelector('.modal-actions .btn-danger').addEventListener('click', cancelAppointment);
+    const modalActions = document.querySelector('.modal-actions');
+    if (modalActions) {
+        const editBtn = modalActions.querySelector('.btn-primary');
+        const printBtn = modalActions.querySelector('.btn-secondary');
+        const cancelBtn = modalActions.querySelector('.btn-danger');
+        
+        if (editBtn) editBtn.addEventListener('click', editAppointment);
+        if (printBtn) printBtn.addEventListener('click', printAppointment);
+        if (cancelBtn) cancelBtn.addEventListener('click', cancelAppointment);
+    }
     
     // Inicializar eventos de fechas del calendario
     // Nota: El binding de eventos se hace dentro de renderCalendarGrid
@@ -282,30 +319,46 @@ function setupTerapiaVisualForm() {
 
 // ==================== FUNCIONES DE LA API CORREGIDAS ====================
 
+// ==================== FUNCIONES DE LA API CORREGIDAS ====================
+
 async function loadCitas() {
     try {
-        console.log('📅 Cargando citas desde API...');
+        console.log('📅 Cargando citas desde API (incluyendo recurrentes)...');
         
-        // Intentar primero la ruta con autenticación
-        let response = await fetch(`${API_BASE_URL}/api/citas/admin`, {
+        // Intentar primero la ruta NUEVA con todas las citas
+        let response = await fetch(`${API_BASE_URL}/api/citas/todas`, {
             method: 'GET',
-            credentials: 'include', // ¡CRÍTICO! Incluir cookies
+            credentials: 'include',
             headers: {
                 'Accept': 'application/json',
                 'Content-Type': 'application/json'
             }
         });
         
-        console.log('📊 Respuesta de citas admin:', response.status);
+        console.log('📊 Respuesta de citas todas:', response.status);
         
         if (!response.ok) {
-            // Si falla, intentar la ruta de debug (sin autenticación)
-            console.log('🔄 Ruta admin falló, intentando ruta debug...');
-            response = await fetch(`${API_BASE_URL}/api/citas/debug`, {
+            // Si falla, intentar la ruta alternativa
+            console.log('🔄 Ruta todas falló, intentando ruta admin completo...');
+            response = await fetch(`${API_BASE_URL}/api/citas/admin_completo`, {
                 method: 'GET',
                 credentials: 'include',
                 headers: {
-                    'Accept': 'application/json'
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                }
+            });
+        }
+        
+        if (!response.ok) {
+            // Si falla, intentar la ruta original con autenticación
+            console.log('🔄 Rutas nuevas fallaron, intentando ruta admin original...');
+            response = await fetch(`${API_BASE_URL}/api/citas/admin`, {
+                method: 'GET',
+                credentials: 'include',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
                 }
             });
         }
@@ -319,16 +372,96 @@ async function loadCitas() {
         allCitas = await response.json();
         console.log('✅ Citas cargadas correctamente:', allCitas.length, 'citas');
         
+        // DEBUG: Mostrar información sobre citas recurrentes
+        const citasConFecha = allCitas.filter(c => c.fecha);
+        const fechasUnicas = [...new Set(citasConFecha.map(c => c.fecha))];
+        console.log('📅 Fechas con citas:', fechasUnicas);
+        
+        // Verificar si hay citas recurrentes
+        const hoy = new Date().toISOString().split('T')[0];
+        const citasHoy = allCitas.filter(c => c.fecha === hoy);
+        console.log(`📋 Citas para hoy (${hoy}):`, citasHoy.length);
+        
         return allCitas;
         
     } catch (error) {
         console.error('❌ Error cargando citas:', error);
         
-        // Para desarrollo, mostrar datos de demo
-        console.log('⚠️ Usando datos de demo para desarrollo');
-        allCitas = getDemoCitas();
+        // Para desarrollo, mostrar datos de demo INCLUYENDO recurrentes
+        console.log('⚠️ Usando datos de demo para desarrollo (con recurrentes)');
+        allCitas = getDemoCitasConRecurrentes();
         return allCitas;
     }
+}
+
+// ==================== DATOS DE DEMO MEJORADOS ====================
+
+function getDemoCitasConRecurrentes() {
+    const today = new Date();
+    const hoy = today.toISOString().split('T')[0];
+    
+    // Calcular fechas futuras para simular recurrencia
+    const nextWeek = new Date(today);
+    nextWeek.setDate(today.getDate() + 7);
+    const nextWeekStr = nextWeek.toISOString().split('T')[0];
+    
+    const twoWeeks = new Date(today);
+    twoWeeks.setDate(today.getDate() + 14);
+    const twoWeeksStr = twoWeeks.toISOString().split('T')[0];
+    
+    return [
+        // Cita original de terapia visual
+        {
+            id_cita: 1,
+            fecha: hoy,
+            hora: '12:30:00',
+            paciente: { nombre: 'María', apellido: 'García López', edad: 25, telefono: '555-0101' },
+            motivo: 'Terapia Visual',
+            gabinete: 'Gabinete 1',
+            estado: 'Programada',
+            es_recurrente: true
+        },
+        // Citas recurrentes generadas
+        {
+            id_cita: 2,
+            fecha: nextWeekStr,
+            hora: '12:30:00',
+            paciente: { nombre: 'María', apellido: 'García López', edad: 25, telefono: '555-0101' },
+            motivo: 'Terapia Visual',
+            gabinete: 'Gabinete 2',
+            estado: 'Programada',
+            es_recurrente: true
+        },
+        {
+            id_cita: 3,
+            fecha: twoWeeksStr,
+            hora: '12:30:00',
+            paciente: { nombre: 'María', apellido: 'García López', edad: 25, telefono: '555-0101' },
+            motivo: 'Terapia Visual',
+            gabinete: 'Gabinete 3',
+            estado: 'Programada',
+            es_recurrente: true
+        },
+        // Otras citas normales
+        {
+            id_cita: 4,
+            fecha: hoy,
+            hora: '13:30:00',
+            paciente: { nombre: 'Juan Carlos', apellido: 'Martínez Rodríguez', edad: 30, telefono: '555-0102' },
+            motivo: 'Lentes de contacto',
+            gabinete: 'Gabinete 2',
+            estado: 'Programada'
+        },
+        {
+            id_cita: 5,
+            fecha: hoy,
+            hora: '12:30:00',
+            paciente: { nombre: 'Laura', apellido: 'Perez Diaz', edad: 40, telefono: '555-0103' },
+            motivo: 'Lentes de contacto',
+            gabinete: 'Gabinete 3',
+            estado: 'Completada'
+        },
+    ];
 }
 
 async function updateAppointmentStatus(citaId, nuevoEstado) {
@@ -511,12 +644,19 @@ function updateSelectedDate(date) {
 
 // ==================== TABLA DE HORARIOS CON DATOS REALES ====================
 
+// ==================== TABLA DE HORARIOS MEJORADA ====================
+
 function updateScheduleForDate(date) {
     // Formato 'YYYY-MM-DD' para comparar con la BD
     const dateString = date.toISOString().split('T')[0];
     const citasDelDia = allCitas.filter(cita => cita.fecha === dateString);
     
     console.log(`🕒 Actualizando horario para ${dateString}:`, citasDelDia.length, 'citas');
+    
+    // DEBUG: Mostrar información detallada
+    citasDelDia.forEach(cita => {
+        console.log(`   📋 Cita ${cita.id_cita}: ${cita.hora} - ${cita.gabinete} - ${cita.paciente.nombre}`);
+    });
     
     // Limpiar toda la tabla primero
     const tableCells = document.querySelectorAll('.schedule-table td');
@@ -532,20 +672,26 @@ function updateScheduleForDate(date) {
     
     // Llenar tabla con citas del día
     citasDelDia.forEach(cita => {
-        if (!cita.hora) return;
+        if (!cita.hora) {
+            console.warn(`⚠️ Cita ${cita.id_cita} sin hora definida`);
+            return;
+        }
 
         const hora = cita.hora.substring(0, 5);
         // Extraer número de gabinete (ej: "Gabinete 3" -> 3)
-        const gabineteMatch = cita.gabinete.match(/\d+/);
+        const gabineteMatch = cita.gabinete ? cita.gabinete.match(/\d+/) : null;
         const gabineteNum = gabineteMatch ? parseInt(gabineteMatch[0]) : 0;
+        
+        console.log(`   🎯 Procesando cita: Hora ${hora}, Gabinete ${gabineteNum}`);
         
         if (gabineteNum >= 1 && gabineteNum <= 5) { // Solo gabinetes 1-5 para la tabla de ejemplo
             const timeSlotRow = findTimeSlotRow(hora);
             if (timeSlotRow) {
                 const gabineteCell = timeSlotRow.cells[gabineteNum];
                 if (gabineteCell) { // Asegurar que la celda existe
+                    console.log(`   ✅ Asignando cita a celda: Fila ${hora}, Columna ${gabineteNum}`);
                     gabineteCell.innerHTML = createAppointmentHTML(cita);
-                    const statusClass = cita.estado.toLowerCase().replace(' ', '-');
+                    const statusClass = cita.estado ? cita.estado.toLowerCase().replace(' ', '-') : 'programada';
                     gabineteCell.classList.add('has-appointment', statusClass);
                     
                     // Agregar event listener
@@ -554,22 +700,33 @@ function updateScheduleForDate(date) {
                         // Usar una función anónima para pasar la cita, evitando problemas con re-binding
                         appointmentElement.addEventListener('click', () => showAppointmentDetails(cita));
                     }
+                } else {
+                    console.warn(`❌ Celda de gabinete ${gabineteNum} no encontrada en fila ${hora}`);
                 }
+            } else {
+                console.warn(`❌ Fila para hora ${hora} no encontrada en la tabla`);
             }
+        } else {
+            console.warn(`⚠️ Gabinete fuera de rango: ${gabineteNum} (cita ${cita.id_cita})`);
         }
     });
+    
+    console.log(`✅ Tabla de horarios actualizada para ${dateString}`);
 }
 
 function findTimeSlotRow(hora) {
     const rows = document.querySelectorAll('.schedule-table tbody tr');
     for (let row of rows) {
         const timeCell = row.cells[0];
+        if (!timeCell) continue;
+        
         // Quita el símbolo y recorta a 5 caracteres (ej: "☐ 12:30" -> "12:30")
         const rowTime = timeCell.textContent.trim().substring(2).trim().substring(0, 5); 
         if (rowTime === hora) {
             return row;
         }
     }
+    console.warn(`❌ No se encontró fila para la hora: ${hora}`);
     return null;
 }
 
@@ -868,6 +1025,85 @@ function closeEditModal() {
     }
 }
 
+
+// ==================== HERRAMIENTAS DE DIAGNÓSTICO ====================
+function debugElementosDashboard() {
+    console.log('=== DEBUG ELEMENTOS DASHBOARD ===');
+    
+    // Verificar elementos críticos del dashboard
+    const elementos = {
+        dashboard: document.querySelector('.dashboard'),
+        scheduleContainer: document.querySelector('.schedule-container'),
+        patientDetails: document.querySelector('.patient-details'),
+        terapiaSection: document.getElementById('terapiaVisualSection'),
+        navButtons: document.querySelectorAll('.nav-btn'),
+        calendar: document.querySelector('.calendar'),
+        statsGrid: document.querySelector('.stats-grid')
+    };
+    
+    console.log('Elementos encontrados:', elementos);
+    
+    // Verificar estilos de display
+    for (const [nombre, elemento] of Object.entries(elementos)) {
+        if (elemento) {
+            const displayStyle = window.getComputedStyle(elemento).display;
+            console.log(`${nombre}: display = ${displayStyle}`);
+        } else {
+            console.log(`${nombre}: NO ENCONTRADO`);
+        }
+    }
+}
+
+function debugCitasCompleto() {
+    console.log('=== DEBUG COMPLETO DE CITAS ===');
+    console.log('Total de citas:', allCitas.length);
+    
+    // Agrupar por fecha
+    const citasPorFecha = {};
+    allCitas.forEach(cita => {
+        if (!citasPorFecha[cita.fecha]) {
+            citasPorFecha[cita.fecha] = [];
+        }
+        citasPorFecha[cita.fecha].push(cita);
+    });
+    
+    console.log('Citas por fecha:', citasPorFecha);
+    
+    // Verificar estructura de cada cita
+    allCitas.forEach((cita, index) => {
+        console.log(`Cita ${index + 1}:`, {
+            id: cita.id_cita,
+            fecha: cita.fecha,
+            hora: cita.hora,
+            paciente: cita.paciente,
+            motivo: cita.motivo,
+            gabinete: cita.gabinete,
+            estado: cita.estado,
+            es_recurrente: cita.es_recurrente || false
+        });
+    });
+    
+    // Mostrar en pantalla para fácil diagnóstico
+    const hoy = new Date().toISOString().split('T')[0];
+    const citasHoy = allCitas.filter(c => c.fecha === hoy);
+    alert(`Diagnóstico:\nTotal citas: ${allCitas.length}\nCitas hoy: ${citasHoy.length}\nRevisa la consola para más detalles`);
+}
+
+// Agregar botón de debug al panel (opcional)
+
+// Llamar en la inicialización
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Iniciando panel de administración...');
+    initializeAdminPanel();
+    agregarBotonDebug(); // Agregar botón de debug
+    
+    // Asignar evento al formulario de terapia visual
+    const terapiaForm = document.getElementById('terapiaVisualForm');
+    if (terapiaForm) {
+        terapiaForm.addEventListener('submit', handleTerapiaVisualSubmit);
+    }
+});
+
 async function handleEditFormSubmit(event) {
     event.preventDefault();
     
@@ -962,6 +1198,271 @@ async function handleEditFormSubmit(event) {
     }
 }
 
+// ==================== FUNCIONALIDAD MEJORADA PARA TERAPIA VISUAL ====================
+
+// Función para cargar horarios disponibles dinámicamente
+async function cargarHorariosDisponibles(fecha) {
+    try {
+        console.log(`📅 Cargando horarios disponibles para: ${fecha}`);
+        
+        const response = await fetch(`${API_BASE_URL}/api/terapia/horarios_disponibles`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({ fecha: fecha })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Error del servidor: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('🕒 Horarios disponibles:', data.horarios_disponibles);
+        
+        return data.horarios_disponibles;
+        
+    } catch (error) {
+        console.error('❌ Error cargando horarios:', error);
+        // En caso de error, retornar horarios por defecto
+        return ['12:30:00', '13:30:00', '14:30:00', '15:30:00'];
+    }
+}
+
+// Función para actualizar el select de horarios
+function actualizarSelectHorarios(horariosDisponibles) {
+    const selectHora = document.getElementById('terapiaHora');
+    const horaSeleccionada = selectHora.value;
+    
+    // Guardar opción actual si existe
+    const opcionActual = horariosDisponibles.includes(horaSeleccionada) ? horaSeleccionada : '';
+    
+    // Limpiar select (mantener primera opción vacía)
+    selectHora.innerHTML = '<option value="">Selecciona hora</option>';
+    
+    // Mapeo de horas a formato legible
+    const formatoHora = {
+        '08:00:00': '8:00 AM',
+        '09:00:00': '9:00 AM', 
+        '10:00:00': '10:00 AM',
+        '11:00:00': '11:00 AM',
+        '12:00:00': '12:00 PM',
+        '12:30:00': '12:30 PM',
+        '13:30:00': '1:30 PM',
+        '14:30:00': '2:30 PM',
+        '15:30:00': '3:30 PM'
+    };
+    
+    // Agregar horarios disponibles
+    horariosDisponibles.forEach(hora => {
+        const option = document.createElement('option');
+        option.value = hora;
+        option.textContent = formatoHora[hora] || hora;
+        selectHora.appendChild(option);
+    });
+    
+    // Restaurar selección anterior si sigue disponible
+    if (opcionActual && horariosDisponibles.includes(opcionActual)) {
+        selectHora.value = opcionActual;
+    }
+    
+    // Mostrar mensaje si no hay horarios disponibles
+    const messageEl = document.getElementById('terapiaMessage');
+    if (horariosDisponibles.length === 0) {
+        messageEl.innerHTML = `<div style="color: #856404; background: #fff3cd; padding: 10px; border-radius: 5px;">
+            ⚠️ No hay horarios disponibles para esta fecha. Por favor selecciona otra fecha.
+        </div>`;
+    } else {
+        messageEl.innerHTML = '';
+    }
+}
+
+// Función para verificar disponibilidad en tiempo real
+async function verificarDisponibilidadEnTiempoReal(fecha, hora) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/terapia/disponibilidad`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({ 
+                fecha: fecha,
+                hora: hora 
+            })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            return data;
+        } else {
+            throw new Error('Error verificando disponibilidad');
+        }
+        
+    } catch (error) {
+        console.error('❌ Error verificando disponibilidad:', error);
+        return { disponible: true, message: 'Asumiendo disponible por error de conexión' };
+    }
+}
+
+// Configuración mejorada del formulario de terapia visual
+function setupTerapiaVisualForm() {
+    const terapiaForm = document.getElementById('terapiaVisualForm');
+    if (!terapiaForm) return;
+    
+    const fechaInput = document.getElementById('terapiaFecha');
+    const horaSelect = document.getElementById('terapiaHora');
+    const messageEl = document.getElementById('terapiaMessage');
+    
+    if (fechaInput) {
+        // Establecer fecha mínima como hoy
+        const today = new Date().toISOString().split('T')[0];
+        fechaInput.min = today;
+        fechaInput.value = today;
+        
+        // Cargar horarios disponibles al cambiar fecha
+        fechaInput.addEventListener('change', async function() {
+            const fecha = this.value;
+            if (fecha) {
+                messageEl.innerHTML = '<div style="color: #856404; background: #fff3cd; padding: 10px; border-radius: 5px;">Cargando horarios disponibles...</div>';
+                
+                const horariosDisponibles = await cargarHorariosDisponibles(fecha);
+                actualizarSelectHorarios(horariosDisponibles);
+            }
+        });
+        
+        // Cargar horarios disponibles inicialmente
+        setTimeout(async () => {
+            const horariosDisponibles = await cargarHorariosDisponibles(fechaInput.value);
+            actualizarSelectHorarios(horariosDisponibles);
+        }, 500);
+    }
+    
+    // Verificar disponibilidad al cambiar hora
+    if (horaSelect) {
+        horaSelect.addEventListener('change', async function() {
+            const fecha = fechaInput.value;
+            const hora = this.value;
+            
+            if (fecha && hora) {
+                const disponibilidad = await verificarDisponibilidadEnTiempoReal(fecha, hora);
+                
+                if (!disponibilidad.disponible) {
+                    messageEl.innerHTML = `<div style="color: #721c24; background: #f8d7da; padding: 10px; border-radius: 5px;">
+                        ❌ ${disponibilidad.message}
+                    </div>`;
+                } else {
+                    messageEl.innerHTML = `<div style="color: #155724; background: #d4edda; padding: 10px; border-radius: 5px;">
+                        ✅ ${disponibilidad.message}
+                    </div>`;
+                }
+            }
+        });
+    }
+}
+
+// Función de envío mejorada con validación de disponibilidad
+async function handleTerapiaVisualSubmit(event) {
+    event.preventDefault();
+    
+    console.log("🔄 Iniciando envío de terapia visual...");
+    
+    // Obtener y validar datos
+    const nombrePaciente = document.getElementById('terapiaNombre').value;
+    const fechaInput = document.getElementById('terapiaFecha').value;
+    const horaSelect = document.getElementById('terapiaHora');
+    const horaValor = horaSelect.options[horaSelect.selectedIndex].value;
+    
+    if (!nombrePaciente || !fechaInput || !horaValor) {
+        alert('Por favor completa todos los campos requeridos');
+        return;
+    }
+    
+    // Verificar disponibilidad final antes de enviar
+    const disponibilidad = await verificarDisponibilidadEnTiempoReal(fechaInput, horaValor);
+    if (!disponibilidad.disponible) {
+        alert(`❌ No se puede agendar: ${disponibilidad.message}`);
+        return;
+    }
+    
+    const recurrenteCheckbox = document.getElementById('terapiaRecurrente');
+    const esRecurrente = recurrenteCheckbox ? recurrenteCheckbox.checked : true;
+    
+    const formData = {
+        nombre_paciente: nombrePaciente,
+        fecha_inicio: fechaInput,
+        hora: horaValor,
+        edad: document.getElementById('terapiaEdad').value || null,
+        telefono: document.getElementById('terapiaTelefono').value || null,
+        notas: document.getElementById('terapiaNotas').value || '',
+        es_recurrente: esRecurrente
+    };
+    
+    const messageEl = document.getElementById('terapiaMessage');
+    messageEl.innerHTML = '<div style="color: #856404; background: #fff3cd; padding: 10px; border-radius: 5px;">Agendando terapia visual...</div>';
+    
+    try {
+        console.log("📤 Enviando solicitud al servidor...");
+        
+        const response = await fetch(`${API_BASE_URL}/api/citas/agendar_terapia`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify(formData)
+        });
+        
+        console.log(`📡 Respuesta del servidor: ${response.status}`);
+        
+        const data = await response.json();
+        console.log("📨 Datos de respuesta:", data);
+        
+        if (response.ok) {
+            let mensajeExito = `✅ Terapia visual agendada exitosamente para ${formData.nombre_paciente}`;
+            
+            if (esRecurrente && data.total_citas) {
+                mensajeExito += `<br>📅 Se crearon ${data.total_citas} citas hasta el ${data.fecha_fin}`;
+            }
+            
+            messageEl.innerHTML = `<div style="color: #155724; background: #d4edda; padding: 10px; border-radius: 5px;">
+                ${mensajeExito}
+            </div>`;
+            
+            // Limpiar formulario
+            document.getElementById('terapiaVisualForm').reset();
+            
+            // Restaurar fecha actual y recargar horarios
+            const today = new Date().toISOString().split('T')[0];
+            const fechaInputEl = document.getElementById('terapiaFecha');
+            if (fechaInputEl) {
+                fechaInputEl.value = today;
+                // Recargar horarios disponibles
+                const horariosDisponibles = await cargarHorariosDisponibles(today);
+                actualizarSelectHorarios(horariosDisponibles);
+            }
+            
+            // Actualizar estadísticas y calendario
+            await loadCitas();
+            updateStats();
+            updateCalendar();
+            
+        } else {
+            console.error("❌ Error del servidor:", data);
+            messageEl.innerHTML = `<div style="color: #721c24; background: #f8d7da; padding: 10px; border-radius: 5px;">
+                ❌ Error: ${data.message || 'Error desconocido del servidor'}
+            </div>`;
+        }
+        
+    } catch (error) {
+        console.error('💥 Error de conexión:', error);
+        messageEl.innerHTML = `<div style="color: #721c24; background: #f8d7da; padding: 10px; border-radius: 5px;">
+            ❌ Error de conexión con el servidor: ${error.message}
+        </div>`;
+    }
+}
+
 function printAppointment() {
     const patientName = document.getElementById('modal-patient-name').textContent;
     const details = `
@@ -1053,7 +1554,7 @@ function getStatusClass(estado) {
 }
 
 // Función de debug
-function debugCitas() {
+/* function debugCitas() {
     console.log('=== DEBUG CITAS ===');
     console.log('Total de citas:', allCitas.length);
     console.log('Citas:', allCitas);
@@ -1070,7 +1571,7 @@ function debugCitas() {
             estado: cita.estado
         });
     });
-}
+} */
 
 // Datos de demo para cuando la API no esté disponible
 function getDemoCitas() {

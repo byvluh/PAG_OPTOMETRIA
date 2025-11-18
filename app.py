@@ -97,6 +97,25 @@ usuario_permiso = db.Table('usuario_permiso',
     db.Column('id_permiso', db.Integer, db.ForeignKey('permiso.id_permiso'), primary_key=True)
 )
 
+# En la clase Config o en las variables globales, agregar todos los horarios
+class Config:
+    
+    # HORARIOS COMPLETOS DE ATENCIÓN (mañana y tarde)
+    HORARIOS_ATENCION = [
+        '08:00:00', '09:00:00', '10:00:00', '11:00:00', '12:00:00',
+        '12:30:00', '13:30:00', '14:30:00', '15:30:00'
+    ]
+    
+    # HORARIOS ESPECÍFICOS PARA TERAPIA VISUAL (tarde)
+    HORARIOS_TERAPIA_VISUAL = [
+        '12:30:00', '13:30:00', '14:30:00', '15:30:00'
+    ]
+
+# O si prefieres mantenerlo como variable global en app.py
+HORARIOS_DISPONIBLES = [
+    '08:00:00', '09:00:00', '10:00:00', '11:00:00', '12:00:00',
+    '12:30:00', '13:30:00', '14:30:00', '15:30:00'
+]
 # Modelo Paciente
 class Paciente(db.Model):
     id_paciente = db.Column(db.Integer, primary_key=True)
@@ -1103,8 +1122,145 @@ def cancelar_serie_completa(serie_id):
         return jsonify({'message': 'Error al cancelar serie', 'error': str(e)}), 500
 
 
+# 📅 Ruta para obtener todas las citas (incluyendo recurrentes)
+@app.route('/api/citas/admin_completo', methods=['GET'])
+@login_required
+def get_citas_admin_completo():
+    """Obtiene todas las citas incluyendo las recurrentes"""
+    try:
+        print(f"📊 Citas completas solicitadas por: {current_user.nombre_usuario}")
+        
+        # Obtener citas principales
+        citas_principales = Cita.query.order_by(Cita.fecha, Cita.hora).all()
+        
+        # Obtener citas de series recurrentes
+        citas_recurrentes = Cita.query.join(CitaRecurrenteDetalle).filter(
+            CitaRecurrenteDetalle.id_cita == Cita.id_cita
+        ).order_by(Cita.fecha, Cita.hora).all()
+        
+        # Combinar y eliminar duplicados
+        todas_citas = citas_principales + citas_recurrentes
+        todas_citas = list({cita.id_cita: cita for cita in todas_citas}.values())
+        
+        print(f"✅ Citas cargadas: {len(citas_principales)} principales + {len(citas_recurrentes)} recurrentes = {len(todas_citas)} total")
+        
+        return jsonify([cita.to_dict() for cita in todas_citas]), 200
+        
+    except Exception as e:
+        print(f"❌ Error cargando citas completas: {str(e)}")
+        return jsonify({'message': 'Error al cargar citas', 'error': str(e)}), 500
+
+# 📅 Ruta alternativa más eficiente
+@app.route('/api/citas/todas', methods=['GET'])
+@login_required  
+def get_todas_citas():
+    """Obtiene todas las citas de manera más eficiente"""
+    try:
+        # Usar subquery para obtener todas las citas únicas
+        subquery = db.session.query(CitaRecurrenteDetalle.id_cita).subquery()
+        
+        # Citas que NO están en recurrentes + citas que SÍ están en recurrentes
+        todas_citas = Cita.query.order_by(Cita.fecha, Cita.hora).all()
+        
+        print(f"📊 Total de citas cargadas: {len(todas_citas)}")
+        
+        return jsonify([cita.to_dict() for cita in todas_citas]), 200
+        
+    except Exception as e:
+        print(f"❌ Error cargando todas las citas: {str(e)}")
+        return jsonify({'message': 'Error al cargar citas', 'error': str(e)}), 500
 
 
+# 📅 Ruta para verificar disponibilidad específica de terapia visual
+@app.route('/api/terapia/disponibilidad', methods=['POST'])
+@login_required
+def get_disponibilidad_terapia():
+    """Verifica disponibilidad para terapia visual en fecha y hora específicas"""
+    try:
+        data = request.get_json()
+        fecha_str = data.get('fecha')
+        hora_str = data.get('hora')
+        
+        if not fecha_str or not hora_str:
+            return jsonify({'message': 'Fecha y hora requeridas'}), 400
+        
+        fecha_dt = datetime.strptime(fecha_str, '%Y-%m-%d').date()
+        hora_dt = datetime.strptime(hora_str, '%H:%M:%S').time()
+        
+        # Verificar si es fin de semana
+        day_of_week = fecha_dt.weekday()
+        if day_of_week >= 5:  # Sábado o Domingo
+            return jsonify({
+                'disponible': False,
+                'message': 'No hay atención los fines de semana'
+            }), 200
+        
+        # Verificar disponibilidad
+        cita_existente = Cita.query.filter_by(fecha=fecha_dt, hora=hora_dt).first()
+        
+        if cita_existente:
+            return jsonify({
+                'disponible': False,
+                'message': f'Horario no disponible. Ya existe una cita a las {hora_str}'
+            }), 200
+        else:
+            return jsonify({
+                'disponible': True,
+                'message': 'Horario disponible'
+            }), 200
+            
+    except Exception as e:
+        print(f"❌ Error verificando disponibilidad terapia: {str(e)}")
+        return jsonify({'message': 'Error al verificar disponibilidad', 'error': str(e)}), 500
+
+# 📅 Ruta para obtener horarios disponibles para terapia visual
+@app.route('/api/terapia/horarios_disponibles', methods=['POST'])
+@login_required
+def get_horarios_disponibles_terapia():
+    """Obtiene todos los horarios disponibles para terapia visual en una fecha"""
+    try:
+        data = request.get_json()
+        fecha_str = data.get('fecha')
+        
+        if not fecha_str:
+            return jsonify({'message': 'Fecha requerida'}), 400
+        
+        fecha_dt = datetime.strptime(fecha_str, '%Y-%m-%d').date()
+        
+        # Verificar si es fin de semana
+        day_of_week = fecha_dt.weekday()
+        if day_of_week >= 5:
+            return jsonify({
+                'horarios_disponibles': [],
+                'message': 'No hay atención los fines de semana'
+            }), 200
+        
+        # Obtener citas existentes para esa fecha
+        citas_del_dia = Cita.query.filter_by(fecha=fecha_dt).all()
+        horas_ocupadas = {str(cita.hora) for cita in citas_del_dia}
+        
+        # Horarios específicos para terapia visual
+        horarios_terapia = [
+            '12:30:00', '13:30:00', '14:30:00', '15:30:00'
+        ]
+        
+        # Filtrar horarios disponibles
+        horarios_disponibles = [
+            hora for hora in horarios_terapia 
+            if hora not in horas_ocupadas
+        ]
+        
+        print(f"📅 Horarios disponibles para terapia {fecha_str}: {horarios_disponibles}")
+        
+        return jsonify({
+            'horarios_disponibles': horarios_disponibles,
+            'fecha': fecha_str,
+            'total_disponibles': len(horarios_disponibles)
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Error obteniendo horarios terapia: {str(e)}")
+        return jsonify({'message': 'Error al obtener horarios', 'error': str(e)}), 500
 
 # ----------------------------------------------------
 # 🚀 Ejecución de la Aplicación

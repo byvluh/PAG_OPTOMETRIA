@@ -49,7 +49,7 @@ h1 {
 }
 
 .dashboard {
-    display: grid;
+    display: grid !important;
     grid-template-columns: 1fr 1fr;
     gap: 25px;
     margin-bottom: 30px;
@@ -263,6 +263,7 @@ h1 {
 }
 
 .schedule-container {
+    display: block !important;
     margin-top: 25px;
 }
 
@@ -368,6 +369,7 @@ h1 {
 }
 
 .patient-details {
+    display: block !important;
     margin-top: 30px;
 }
 
@@ -805,6 +807,7 @@ h1 {
 
 .admin-section {
     margin-bottom: 30px; 
+    display : none;
 }
 
 .nav-btn {
@@ -989,4 +992,85 @@ h1 {
 #edit-modal .form-group textarea {
     resize: vertical;
     min-height: 80px;
+}
+
+/* Agregar al archivo estiloAdmin.css */
+
+/* Estilos para la navegación entre secciones */
+.admin-navigation {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 30px;
+    border-bottom: 2px solid var(--light-gray);
+    padding-bottom: 15px;
+    flex-wrap: wrap;
+}
+
+.nav-btn {
+    padding: 12px 20px;
+    background: var(--light-gray);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    color: var(--gray);
+    font-size: 1rem;
+}
+
+.nav-btn:hover {
+    background: var(--secondary);
+    color: white;
+    transform: translateY(-2px);
+}
+
+.nav-btn.active {
+    background: var(--primary);
+    color: white;
+    box-shadow: 0 4px 8px rgba(33, 54, 52, 0.3);
+}
+
+/* Asegurar que las secciones del dashboard sean visibles */
+.dashboard {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 25px;
+    margin-bottom: 30px;
+}
+
+.schedule-container {
+    display: block !important;
+    margin-top: 25px;
+}
+
+.patient-details {
+    display: block !important;
+    margin-top: 30px;
+}
+
+/* Ocultar secciones admin cuando no estén activas */
+.admin-section {
+    display: none;
+}
+
+.admin-section:not([style*="display: none"]) {
+    display: block;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+    .dashboard {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .admin-navigation {
+        flex-direction: column;
+    }
+    
+    .nav-btn {
+        width: 100%;
+        text-align: center;
+    }
 }
