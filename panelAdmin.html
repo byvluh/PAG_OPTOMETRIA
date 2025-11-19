@@ -9,6 +9,7 @@
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
     />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   </head>
   <body>
     <div id="appointment-modal" class="modal">
@@ -68,6 +69,9 @@
         </button>
         <button class="nav-btn" onclick="showSection('terapiaVisual')">
           Agendar Terapia Visual
+        </button>
+        <button class="nav-btn" onclick="showSection('reportes')">
+          Reportes y Exportación
         </button>
       </div>
 
@@ -161,6 +165,42 @@
         </div>
       </div>
 
+<div id="reportesSection" class="admin-section" style="display: none">
+    <div class="card">
+        <h2><i class="fas fa-file-alt"></i> Reporte Semanal de Citas</h2>
+        <p>Datos de las citas programadas en los últimos 7 días. (Desde <span id="reporteFechaInicio"></span> hasta <span id="reporteFechaFin"></span>)</p>
+
+        <div style="margin-bottom: 20px; display: flex; gap: 10px;">
+            <button id="exportExcelBtn" class="btn btn-secondary">
+                <i class="fas fa-file-excel"></i> Exportar a Excel
+            </button>
+            
+            <button id="refreshReportBtn" class="btn btn-primary">
+                <i class="fas fa-sync-alt"></i> Actualizar Reporte
+            </button>
+        </div>
+        
+        <div id="reporteResultado">
+            <table id="reporteTable" class="schedule-table" style="text-align: left;">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Hora</th>
+                        <th>Paciente</th>
+                        <th>Teléfono</th>
+                        <th>Motivo</th>
+                        <th>Gabinete</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Los datos se cargarán aquí dinámicamente -->
+                </tbody>
+            </table>
+            <div id="reporteMessage" style="margin-top: 20px;">Cargando reportes...</div>
+        </div>
+    </div>
+</div>
 
       <div id="dashboardSection" class="admin-section">
         <div class="dashboard">

@@ -41,6 +41,10 @@ function showSection(sectionName) {
         targetSection.style.display = 'block';
     }
     
+    if (sectionName === 'reportes') {
+        loadReporteSemanal(); // Cargar datos al mostrar la sección
+    }
+
     // Activar el botón correspondiente
     const clickedButton = Array.from(document.querySelectorAll('.nav-btn')).find(btn => 
         btn.textContent.toLowerCase().includes(sectionName.toLowerCase())
@@ -284,7 +288,7 @@ function initializeEventListeners() {
         nextMonthBtn.addEventListener('click', nextMonth);
     }
     
-    // Cerrar modal
+    // Cerrar modal de detalles de cita
     const closeModalBtn = document.querySelector('#appointment-modal .close');
     if (closeModalBtn) {
         closeModalBtn.addEventListener('click', closeModal);
@@ -296,7 +300,7 @@ function initializeEventListeners() {
         }
     });
     
-    // Botones del modal
+    // Botones del modal de detalles (editar, imprimir, cancelar)
     const modalActions = document.querySelector('.modal-actions');
     if (modalActions) {
         const editBtn = modalActions.querySelector('.btn-primary');
@@ -308,9 +312,33 @@ function initializeEventListeners() {
         if (cancelBtn) cancelBtn.addEventListener('click', cancelAppointment);
     }
     
+    // ⭐ EVENT LISTENERS PARA REPORTES CORREGIDOS ⭐
+    const exportExcelBtn = document.getElementById('exportExcelBtn');
+    const exportCSVBtn = document.getElementById('exportCSVBtn');
+    const refreshReportBtn = document.getElementById('refreshReportBtn');
+    
+    if (exportExcelBtn) {
+        exportExcelBtn.addEventListener('click', () => {
+            const fecha = new Date().toISOString().split('T')[0];
+            exportTableToExcel('reporteTable', `reporte_semanal_${fecha}.xlsx`);
+        });
+    }
+    
+    if (exportCSVBtn) {
+        exportCSVBtn.addEventListener('click', () => {
+            const fecha = new Date().toISOString().split('T')[0];
+            exportTableToCSV('reporteTable', `reporte_semanal_${fecha}.csv`);
+        });
+    }
+    
+    if (refreshReportBtn) {
+        refreshReportBtn.addEventListener('click', loadReporteSemanal);
+    }
+    
     // Inicializar eventos de fechas del calendario
     // Nota: El binding de eventos se hace dentro de renderCalendarGrid
 }
+
 
 // ⭐ Lógica del formulario de Terapia Visual ⭐
 
@@ -1401,6 +1429,175 @@ function getStatusClass(estado) {
     }
 }
 
+// funAdmin.js - Agregar estas funciones en la sección de funciones de API
+
+async function loadReporteSemanal() {
+    const tbody = document.querySelector('#reporteTable tbody');
+    const messageEl = document.getElementById('reporteMessage');
+    const fechaInicioEl = document.getElementById('reporteFechaInicio');
+    const fechaFinEl = document.getElementById('reporteFechaFin');
+
+    if (messageEl) messageEl.textContent = 'Cargando reportes...';
+    if (tbody) tbody.innerHTML = '';
+
+    try {
+        console.log('📊 Solicitando reporte semanal...');
+        const response = await fetch(`${API_BASE_URL}/api/reportes/semanal`, {
+            method: 'GET',
+            credentials: 'include',
+            headers: { 
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+        });
+
+        console.log('📡 Estado de respuesta:', response.status);
+
+        // Verificar si la respuesta es JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            throw new Error('El servidor no devolvió JSON. Posible error 404.');
+        }
+
+        const data = await response.json();
+
+        if (response.ok) {
+            if (fechaInicioEl) fechaInicioEl.textContent = data.fecha_inicio;
+            if (fechaFinEl) fechaFinEl.textContent = data.fecha_fin;
+
+            if (data.citas && data.citas.length === 0) {
+                if (messageEl) messageEl.textContent = 'No se encontraron citas en el rango seleccionado.';
+                return;
+            }
+
+            // Limpiar tabla
+            if (tbody) tbody.innerHTML = '';
+
+            // Llenar tabla con datos
+            data.citas.forEach(cita => {
+                const row = tbody.insertRow();
+                row.innerHTML = `
+                    <td>${cita.fecha || 'N/A'}</td>
+                    <td>${cita.hora ? cita.hora.substring(0, 5) : 'N/A'}</td>
+                    <td>${cita.nombre_completo || 'N/A'}</td>
+                    <td>${cita.telefono || 'N/A'}</td>
+                    <td>${cita.motivo || 'N/A'}</td>
+                    <td>${cita.gabinete || 'N/A'}</td>
+                    <td><span class="status ${(cita.estado || 'programada').toLowerCase().replace(' ', '-')}">${cita.estado || 'Programada'}</span></td>
+                `;
+            });
+
+            if (messageEl) messageEl.textContent = `✅ Reporte cargado. Total de citas: ${data.total || data.citas.length}`;
+
+        } else {
+            throw new Error(data.message || `Error ${response.status}: ${response.statusText}`);
+        }
+
+    } catch (error) {
+        console.error('❌ Error cargando reporte:', error);
+        if (messageEl) {
+            messageEl.textContent = `❌ Error: ${error.message}`;
+            messageEl.style.color = 'red';
+        }
+        alert(`❌ Error al cargar el reporte: ${error.message}`);
+    }
+}
+/// Función para exportar a Excel CORREGIDA
+function exportTableToExcel(tableId, filename = 'reporte_semanal.xlsx') {
+    const table = document.getElementById(tableId);
+    if (!table) {
+        alert('No se encontró la tabla para exportar');
+        return;
+    }
+
+    try {
+        // Verificar que la librería XLSX esté disponible
+        if (typeof XLSX === 'undefined') {
+            alert('❌ Error: La librería SheetJS no está cargada. Cargando ahora...');
+            // Intentar cargar la librería dinámicamente
+            loadSheetJS().then(() => exportTableToExcel(tableId, filename));
+            return;
+        }
+
+        // Crear libro de trabajo
+        const wb = XLSX.utils.book_new();
+        
+        // Convertir tabla HTML a hoja de trabajo
+        const ws = XLSX.utils.table_to_sheet(table);
+        
+        // Añadir hoja al libro - CORREGIDO
+        XLSX.utils.book_append_sheet(wb, ws, 'Reporte Semanal');
+        
+        // Generar archivo y descargar - CORREGIDO
+        XLSX.writeFile(wb, filename);
+        
+        console.log('✅ Reporte exportado exitosamente');
+        alert(`✅ Reporte "${filename}" exportado con éxito.`);
+        
+    } catch (error) {
+        console.error('❌ Error exportando a Excel:', error);
+        alert('❌ Error al exportar el reporte: ' + error.message);
+    }
+}
+
+// Función para cargar SheetJS dinámicamente
+function loadSheetJS() {
+    return new Promise((resolve, reject) => {
+        if (typeof XLSX !== 'undefined') {
+            resolve();
+            return;
+        }
+        
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+    });
+}
+
+// Función para exportar a CSV CORREGIDA
+function exportTableToCSV(tableId, filename = 'reporte_semanal.csv') {
+    const table = document.getElementById(tableId);
+    if (!table) {
+        alert('No se encontró la tabla para exportar');
+        return;
+    }
+
+    let csvData = [];
+    
+    // Obtener encabezados
+    const headers = Array.from(table.querySelectorAll('thead th')).map(th => 
+        th.textContent.trim().replace(/(\r\n|\n|\r)/gm, "").replace(/"/g, '""')
+    );
+    csvData.push(headers.join(','));
+
+    // Obtener filas de datos
+    table.querySelectorAll('tbody tr').forEach(row => {
+        const rowData = Array.from(row.querySelectorAll('td')).map(td => {
+            // Limpiar texto de tags HTML y escapar comillas
+            const text = td.textContent.trim().replace(/(\r\n|\n|\r)/gm, "").replace(/"/g, '""');
+            return `"${text}"`;
+        });
+        csvData.push(rowData.join(','));
+    });
+
+    // Crear y descargar archivo CSV
+    const csvString = csvData.join('\n');
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+
+    if (link.download !== undefined) {
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        alert(`✅ Reporte "${filename}" exportado con éxito.`);
+    }
+}
 // Función para generar la cuadrícula del calendario dinámicamente
 function renderCalendarGrid() {
     const grid = document.querySelector('.calendar-grid');

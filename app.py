@@ -166,7 +166,7 @@ class Usuario(UserMixin, db.Model):
     contrasena = db.Column(db.String(255), nullable=False)
     id_rol = db.Column(db.Integer, db.ForeignKey('rol.id_rol'), nullable=False)
     rol = db.relationship('Rol', backref='usuarios')
-    citas = db.relationship('Cita', backref='estudiante', lazy='dynamic')
+    citas = db.relationship('Cita', backref='optometrista', lazy='dynamic')
     permisos_especificos = db.relationship('Permiso', secondary=usuario_permiso, lazy='dynamic', backref=db.backref('usuarios', lazy='dynamic'))
     
     def get_id(self):
@@ -388,21 +388,21 @@ def inicializar_db():
             coord_rol.permisos.extend([permiso_lectura, permiso_edicion])
             db.session.add(coord_rol)
             
-        if not Rol.query.filter_by(nombre_rol='Estudiante').first():
-            est_rol = Rol(nombre_rol='Estudiante')
+        if not Rol.query.filter_by(nombre_rol='Optometrista').first():
+            est_rol = Rol(nombre_rol='Optometrista')
             est_rol.permisos.append(permiso_lectura)
             db.session.add(est_rol)
             
         db.session.commit()
         admin_rol = Rol.query.filter_by(nombre_rol='Administrador').first()
         coord_rol = Rol.query.filter_by(nombre_rol='Coordinador').first()
-        est_rol = Rol.query.filter_by(nombre_rol='Estudiante').first()
+        est_rol = Rol.query.filter_by(nombre_rol='Optometrista').first()
 
         # 3. Usuarios Iniciales
         if not Usuario.query.filter_by(nombre_usuario='admin').first():
             admin_user = Usuario(
                 nombre_usuario='admin',
-                contrasena=generate_password_hash('adminpass'),
+                contrasena=generate_password_hash('adminUAL'),
                 id_rol=admin_rol.id_rol
             )
             db.session.add(admin_user)
@@ -410,15 +410,15 @@ def inicializar_db():
         if not Usuario.query.filter_by(nombre_usuario='coordinador').first():
             coord_user = Usuario(
                 nombre_usuario='coordinador',
-                contrasena=generate_password_hash('coordinadorpass'),
+                contrasena=generate_password_hash('cooUAL'),
                 id_rol=coord_rol.id_rol
             )
             db.session.add(coord_user)
 
-        if not Usuario.query.filter_by(nombre_usuario='estudiante_optometria').first():
+        if not Usuario.query.filter_by(nombre_usuario='optometrista').first():
             est_user = Usuario(
-                nombre_usuario='estudiante_optometria',
-                contrasena=generate_password_hash('estudiantepass'),
+                nombre_usuario='optometrista',
+                contrasena=generate_password_hash('optoUAL'),
                 id_rol=est_rol.id_rol
             )
             db.session.add(est_user)
@@ -1271,6 +1271,49 @@ def get_horarios_disponibles_terapia():
         print(f"❌ Error obteniendo horarios terapia: {str(e)}")
         return jsonify({'message': 'Error al obtener horarios', 'error': str(e)}), 500
 
+
+
+
+from datetime import date
+
+@app.route('/api/reportes/semanal', methods=['GET'])
+@login_required
+def get_reporte_semanal():
+    """Genera un reporte de todas las citas de los últimos 7 días."""
+    try:
+        hoy = date.today()
+        fecha_inicio = hoy - timedelta(days=6)
+        
+        print(f"📊 Generando reporte semanal: {fecha_inicio} a {hoy}")
+        
+        # Consulta: Citas cuya fecha esté dentro del rango
+        citas_semanales = Cita.query.filter(Cita.fecha.between(fecha_inicio, hoy)).all()
+        
+        reporte_data = []
+        for cita in citas_semanales:
+            cita_dict = cita.to_dict()
+            
+            if cita.paciente:
+                cita_dict['nombre_completo'] = f"{cita.paciente.nombre} {cita.paciente.apellido}"
+                cita_dict['telefono'] = cita.paciente.telefono
+                cita_dict['edad'] = cita.paciente.edad
+            else:
+                cita_dict['nombre_completo'] = 'Paciente Eliminado'
+                
+            reporte_data.append(cita_dict)
+
+        print(f"✅ Reporte generado: {len(reporte_data)} citas encontradas.")
+        
+        return jsonify({
+            'citas': reporte_data,
+            'fecha_inicio': fecha_inicio.strftime('%Y-%m-%d'),
+            'fecha_fin': hoy.strftime('%Y-%m-%d'),
+            'total': len(reporte_data)
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Error al generar reporte: {str(e)}")
+        return jsonify({'message': 'Error interno al generar el reporte semanal', 'error': str(e)}), 500
 # ----------------------------------------------------
 # 🚀 Ejecución de la Aplicación
 # ----------------------------------------------------
