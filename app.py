@@ -1,4 +1,4 @@
-# app.py - VERSIÓN CORREGIDA FINAL CON HORARIOS RESTRINGIDOS
+# app.py - VERSIÓN CORREGIDA: GABINETES DINÁMICOS Y OCUPACIÓN MÚLTIPLE
 
 from flask import Flask, request, jsonify, session, make_response
 from flask_sqlalchemy import SQLAlchemy
@@ -19,16 +19,13 @@ app.config.from_object(Config)
 # CONFIGURACIÓN CRÍTICA DE COOKIES Y SESIÓN
 app.config.update(
     SECRET_KEY='clave_super_secreta_para_desarrollo_2025_optometria_ual',
-    # Configuración de cookies
     SESSION_COOKIE_NAME='optometria_session',
     SESSION_COOKIE_SECURE=False,            # False para desarrollo (HTTP)
     SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE='Lax',          # ¡IMPORTANTE! Para desarrollo
-    SESSION_COOKIE_DOMAIN=None,             # None para localhost
-    # Configuración de sesión
+    SESSION_COOKIE_SAMESITE='Lax',          
+    SESSION_COOKIE_DOMAIN=None,             
     PERMANENT_SESSION_LIFETIME=timedelta(hours=1),
     SESSION_REFRESH_EACH_REQUEST=True,
-    # Configuración de remember cookie
     REMEMBER_COOKIE_NAME='optometria_remember',
     REMEMBER_COOKIE_DURATION=timedelta(hours=1),
     REMEMBER_COOKIE_SECURE=False,
@@ -55,7 +52,6 @@ def after_request(response):
     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
     response.headers.add('Access-Control-Allow-Credentials', 'true')
     
-    # Headers para control de caché de sesión
     response.headers.add('Cache-Control', 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0')
     response.headers.add('Pragma', 'no-cache')
     response.headers.add('Expires', '0')
@@ -100,12 +96,10 @@ usuario_permiso = db.Table('usuario_permiso',
 # CLASE CONFIG SIMULADA/EXTENDIDA
 class Config:
     
-    # ⭐ HORARIOS RESTRINGIDOS A 12:30 PM - 3:30 PM PARA TODA CITA ⭐
     HORARIOS_ATENCION = [
         '12:30:00', '13:30:00', '14:30:00', '15:30:00'
     ]
     
-    # Estos se usarán para la sección de Terapia Visual en el admin
     HORARIOS_TERAPIA_VISUAL = [
         '12:30:00', '13:30:00', '14:30:00', '15:30:00'
     ]
@@ -125,7 +119,6 @@ class Config:
         {'id': 3, 'descripcion': 'Terapia Visual'}
     ]
     
-    # Asume que esta variable existe en tu config.py
     SQLALCHEMY_DATABASE_URI = 'sqlite:///optometria.db'  
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
@@ -221,7 +214,6 @@ class CitaRecurrente(db.Model):
     creado_por = db.Column(db.Integer, db.ForeignKey('usuario.id_usuario'))
     estado_serie = db.Column(db.String(20))
 
-    # Relación correcta (solo una dirección)
     citas_generadas = db.relationship('Cita', backref='serie_recurrente', lazy=True)
 
 class CitaRecurrenteDetalle(db.Model):
@@ -229,7 +221,7 @@ class CitaRecurrenteDetalle(db.Model):
     id_serie = db.Column(db.Integer, db.ForeignKey('cita_recurrente.id_serie'), nullable=False)
     id_cita = db.Column(db.Integer, db.ForeignKey('cita.id_cita'), nullable=False)
     fecha_programada = db.Column(db.Date, nullable=False)
-    estado_individual = db.Column(db.String(20), default='Programada')  # Programada, Modificada, Cancelada
+    estado_individual = db.Column(db.String(20), default='Programada')  
 
     def to_dict(self):
         return {
@@ -242,15 +234,43 @@ class CitaRecurrenteDetalle(db.Model):
 # ⚙️ Funciones Auxiliares
 # ----------------------------------------------------
 
+def get_next_available_gabinete(fecha, hora):
+    """
+    Busca el primer gabinete disponible (del 1 al 6) para una fecha y hora específicas.
+    Retorna el ID del gabinete o None si todos están llenos.
+    """
+    try:
+        # 1. Obtener qué gabinetes ya están ocupados a esa hora específica
+        citas_en_ese_horario = Cita.query.filter_by(fecha=fecha, hora=hora).all()
+        gabinetes_ocupados = {c.id_gabinete for c in citas_en_ese_horario}
+        
+        # 2. Obtener la lista total de gabinetes desde la Configuración
+        todos_gabinetes = [g['id'] for g in Config.GABINETES]
+        
+        # 3. Buscar el primero que NO esté en la lista de ocupados
+        for g_id in todos_gabinetes:
+            if g_id not in gabinetes_ocupados:
+                print(f"✅ Gabinete {g_id} disponible para {fecha} {hora}")
+                return g_id
+                
+        print(f"❌ Todos los gabinetes ocupados para {fecha} {hora}")
+        return None # Indica que ya no hay lugar
+        
+    except Exception as e:
+        print(f"❌ Error calculando gabinete disponible: {e}")
+        return None
+
+def verificar_disponibilidad_fecha(fecha, hora):
+    """Verifica si hay AL MENOS UN gabinete disponible en esa fecha y hora"""
+    citas_existentes = Cita.query.filter_by(fecha=fecha, hora=hora).count()
+    total_gabinetes = len(Config.GABINETES)
+    # Retorna True (disponible) si hay menos citas que gabinetes
+    return citas_existentes < total_gabinetes
+
 def calcular_fecha_fin(fecha_inicio, meses=3):
     """Calcula la fecha fin sumando meses a la fecha inicio"""
     from dateutil.relativedelta import relativedelta
     return fecha_inicio + relativedelta(months=meses)
-
-def verificar_disponibilidad_fecha(fecha, hora):
-    """Verifica si una fecha y hora están disponibles"""
-    cita_existente = Cita.query.filter_by(fecha=fecha, hora=hora).first()
-    return cita_existente is None
 
 def encontrar_proximo_dia(fecha, dia_semana):
     """Encuentra la próxima fecha que coincida con el día de la semana"""
@@ -262,9 +282,7 @@ def encontrar_proximo_dia(fecha, dia_semana):
 def generar_citas_recurrentes(id_serie, id_paciente, fecha_inicio, fecha_fin, dia_semana, hora, id_usuario):
     """Genera todas las citas recurrentes para la serie (EXCLUYENDO la fecha original)"""
     citas_generadas = []
-    
     fecha_actual = fecha_inicio
-    
     semana_numero = 0
     
     # Ajuste para iniciar en la semana siguiente a la original
@@ -275,32 +293,33 @@ def generar_citas_recurrentes(id_serie, id_paciente, fecha_inicio, fecha_fin, di
         
         # Verificar disponibilidad antes de crear la cita
         if verificar_disponibilidad_fecha(fecha_actual, hora):
-            id_gabinete = get_next_available_gabinete(fecha_actual)
+            id_gabinete = get_next_available_gabinete(fecha_actual, hora)
             
-            # Crear nueva cita para fechas futuras
-            cita = Cita(
-                fecha=fecha_actual,
-                hora=hora,
-                id_paciente=id_paciente,
-                id_motivo=3,  # Terapia visual
-                id_gabinete=id_gabinete,
-                estado='Programada',
-                id_usuario=id_usuario
-            )
-            db.session.add(cita)
-            db.session.flush()
-            
-            # Registrar en el detalle de la serie recurrente
-            detalle = CitaRecurrenteDetalle(
-                id_serie=id_serie,
-                id_cita=cita.id_cita,
-                fecha_programada=fecha_actual,
-                estado_individual='Programada'
-            )
-            db.session.add(detalle)
-            
-            citas_generadas.append(cita)
-            print(f"  📅 Semana {semana_numero}: {fecha_actual} - Gabinete {id_gabinete}")
+            if id_gabinete:
+                # Crear nueva cita para fechas futuras
+                cita = Cita(
+                    fecha=fecha_actual,
+                    hora=hora,
+                    id_paciente=id_paciente,
+                    id_motivo=3,  # Terapia visual
+                    id_gabinete=id_gabinete,
+                    estado='Programada',
+                    id_usuario=id_usuario
+                )
+                db.session.add(cita)
+                db.session.flush()
+                
+                # Registrar en el detalle de la serie recurrente
+                detalle = CitaRecurrenteDetalle(
+                    id_serie=id_serie,
+                    id_cita=cita.id_cita,
+                    fecha_programada=fecha_actual,
+                    estado_individual='Programada'
+                )
+                db.session.add(detalle)
+                
+                citas_generadas.append(cita)
+                print(f"  📅 Semana {semana_numero}: {fecha_actual} - Gabinete {id_gabinete}")
         
         # Avanzar a la siguiente semana (7 días exactos)
         fecha_actual += timedelta(days=7)
@@ -321,19 +340,6 @@ def es_cita_recurrente(cita_id):
     return CitaRecurrenteDetalle.query.filter_by(id_cita=cita_id).first() is not None
 
 
-def get_next_available_gabinete(fecha):
-    """Calcula el siguiente gabinete a asignar para una fecha dada."""
-    try:
-        citas_del_dia = Cita.query.filter_by(fecha=fecha).count()
-        # Los gabinetes van del 1 al 6. El índice de gabinete_id es (citas_del_dia % 6) + 1
-        id_gabinete = (citas_del_dia % 6) + 1
-        print(f"🔢 Asignando gabinete: citas_del_dia={citas_del_dia}, id_gabinete={id_gabinete}")
-        return id_gabinete
-    except Exception as e:
-        print(f"❌ Error en get_next_available_gabinete: {e}")
-        return 1  # Fallback al gabinete 1
-    
-
 # ----------------------------------------------------
 # 🔑 Flask-Login Configuration
 # ----------------------------------------------------
@@ -347,11 +353,6 @@ def load_user(user_id):
 
 @login_manager.unauthorized_handler
 def unauthorized():
-    print("🔐 UNAUTHORIZED: No hay usuario autenticado")
-    print(f"    🍪 Session keys: {list(session.keys())}")
-    print(f"    🆔 User ID in session: {session.get('_user_id')}")
-    print(f"    🌐 Request origin: {request.headers.get('Origin')}")
-    print(f"    🍪 Cookies recibidas: {request.cookies}")
     return jsonify({'message': 'No autorizado - por favor inicia sesión'}), 401
 
 @app.before_request
@@ -465,18 +466,10 @@ def login():
     user = Usuario.query.filter_by(nombre_usuario=username).first()
 
     if user and check_password_hash(user.contrasena, password):
-        # Login con configuración explícita
         login_user(user, remember=True, duration=timedelta(hours=1))
-        
-        # FORZAR guardado de sesión
         session.modified = True
         
-        print(f"✅ LOGIN EXITOSO: {username} ({user.rol.nombre_rol}) - ID: {user.id_usuario}")
-        # CORRECCIÓN: Eliminada la referencia a session.sid
-        print(f"    🍪 SESIÓN CREADA - Session activa") 
-        print(f"    🔐 Session keys: {list(session.keys())}")
-        print(f"    📍 Request origin: {request.headers.get('Origin')}")
-        print(f"    🍪 Cookies establecidas: session_cookie")
+        print(f"✅ LOGIN EXITOSO: {username}")
         
         response = jsonify({
             'message': 'Login exitoso', 
@@ -485,16 +478,13 @@ def login():
             'id_usuario': user.id_usuario,
             'session_created': True
         })
-        
         return response, 200
     
-    print(f"❌ LOGIN FALLIDO: {username}")
     return jsonify({'message': 'Credenciales inválidas'}), 401
 
 @app.route('/logout')
 @login_required
 def logout():
-    print(f"🚪 LOGOUT: {current_user.nombre_usuario}")
     logout_user()
     session.clear()
     return jsonify({'message': 'Logout exitoso'}), 200
@@ -506,14 +496,6 @@ def logout():
 @app.route('/api/user/current', methods=['GET'])
 @login_required
 def get_current_user():
-    print(f"🔍 VERIFICACIÓN SESIÓN EXITOSA: {current_user.nombre_usuario}")
-    print(f"    🆔 User ID: {current_user.id_usuario}")
-    print(f"    👤 Rol: {current_user.rol.nombre_rol}")
-    # CORRECCIÓN: session.sid no existe
-    print(f"    🍪 Session activa") 
-    print(f"    📍 Request origin: {request.headers.get('Origin')}")
-    print(f"    🍪 Cookies recibidas: {request.cookies}")
-    
     return jsonify({
         'id_usuario': current_user.id_usuario,
         'nombre_usuario': current_user.nombre_usuario,
@@ -521,42 +503,23 @@ def get_current_user():
         'session_active': True
     }), 200
 
-# Ruta de debug mejorada
 @app.route('/api/debug/session', methods=['GET'])
 def debug_session():
     session_info = {
         'session_keys': list(session.keys()),
         'user_id_in_session': session.get('_user_id'),
         'current_user_authenticated': current_user.is_authenticated,
-        'current_user_id': current_user.get_id() if current_user.is_authenticated else None,
-        # CORRECCIÓN: session.sid no existe
-        'session_id': 'N/A (SecureCookieSession)', 
-        'session_permanent': session.get('_permanent'),
-        'request_origin': request.headers.get('Origin'),
-        'cookies_received': dict(request.cookies)
     }
-    print(f"🔧 DEBUG SESSION: {session_info}")
     return jsonify(session_info), 200
 
-# Ruta especial para forzar sesión
 @app.route('/api/session/refresh', methods=['POST'])
 def refresh_session():
-    """Forzar refresco de sesión"""
     session.modified = True
-    print("🔄 Sesión refrescada manualmente")
     return jsonify({'message': 'Session refreshed'}), 200
 
 # ----------------------------------------------------
 # 📅 Rutas de Agenda y Pacientes
 # ----------------------------------------------------
-
-# LÓGICA DE ASIGNACIÓN DE GABINETE (Necesaria para agendar)
-def get_next_available_gabinete(fecha):
-    """Calcula el siguiente gabinete a asignar para una fecha dada."""
-    citas_del_dia = Cita.query.filter_by(fecha=fecha).count()
-    # Los gabinetes van del 1 al 6. El índice de gabinete_id es (citas_del_dia % 6) + 1
-    id_gabinete = (citas_del_dia % 6) + 1
-    return id_gabinete
 
 # Ruta para agendar cita
 @app.route('/api/citas/agendar', methods=['POST'])
@@ -569,8 +532,11 @@ def agendar_cita():
         if field not in data:
             return jsonify({'message': f'Falta el campo requerido: {field}'}), 400
 
-    fecha_dt = datetime.strptime(data['fecha'], '%Y-%m-%d').date()
-    hora_dt = datetime.strptime(data['hora'], '%H:%M:%S').time()
+    try:
+        fecha_dt = datetime.strptime(data['fecha'], '%Y-%m-%d').date()
+        hora_dt = datetime.strptime(data['hora'], '%H:%M:%S').time()
+    except ValueError:
+        return jsonify({'message': 'Formato de fecha u hora inválido'}), 400
     
     # 1. Búsqueda o creación del paciente
     paciente = Paciente.query.filter_by(telefono=data['telefono']).first()
@@ -586,21 +552,18 @@ def agendar_cita():
             telefono=data['telefono']
         )
         db.session.add(paciente)
-        db.session.flush() # Obtiene el id_paciente antes del commit
+        db.session.flush() 
     else: # Paciente habitual
         if not paciente:
             return jsonify({'message': 'Paciente habitual no encontrado con este teléfono.'}), 404
-        # Actualizar datos si cambian (opcional, aquí solo se valida que exista)
 
-    # 2. Verificación de superposición de hora (cualquier gabinete)
-    superposicion = Cita.query.filter_by(fecha=fecha_dt, hora=hora_dt).first()
-    if superposicion:
-         # Ya que las citas son de una hora, la superposición simple basta.
-         # 🎯 CORRECCIÓN: Agregar código de estado 409 para devolver una tupla válida (body, status)
-         return jsonify({'message': 'Horario ya ocupado para ese día en todos los gabinetes.'}), 409
+    # 2. Buscar un gabinete disponible para ESA hora específica
+    id_gabinete = get_next_available_gabinete(fecha_dt, hora_dt)
+
+    # 3. Si la función devolvió None, significa que los 6 gabinetes están llenos
+    if id_gabinete is None:
+         return jsonify({'message': 'Todos los gabinetes están ocupados para este horario.'}), 409
     
-    # 3. Asignación de Gabinete (ciclado 1-6)
-    id_gabinete = get_next_available_gabinete(fecha_dt)
     gabinete = Gabinete.query.get(id_gabinete)
 
     # 4. Creación de la cita
@@ -618,7 +581,6 @@ def agendar_cita():
         
         print(f"✅ Cita agendada: {paciente.nombre} el {data['fecha']} a las {data['hora']} en {gabinete.nombre}")
         
-        # El método to_dict() ya está disponible en la clase Cita
         return jsonify({
             'message': 'Cita agendada con éxito',
             'cita': nueva_cita.to_dict()
@@ -642,28 +604,17 @@ def get_disponibilidad():
     except ValueError:
         return jsonify({'message': 'Formato de fecha inválido'}), 400
 
-    # Determinar si el día es de fin de semana (Domingo=6, Sábado=5 si se usa Monday=0)
-    # En Python, Monday=0, Sunday=6
     day_of_week = fecha_dt.weekday() 
-    # Sábado (5) o Domingo (6)
     if day_of_week >= 5: 
         return jsonify({'disponibilidad': {}, 'message': 'No hay atención los fines de semana'}), 200
-
-    # Obtener todas las citas para ese día
-    citas_dia = Cita.query.filter_by(fecha=fecha_dt).all()
-    horas_ocupadas = {str(cita.hora): cita for cita in citas_dia}
     
     disponibilidad = {}
-    
-    # ⭐ USA HORARIOS RESTRINGIDOS ⭐
     horarios_atencion = Config.HORARIOS_ATENCION
 
     for hora in horarios_atencion:
-        # Corrección de lógica: Para que el paciente solo vea si la hora está disponible,
-        # solo verificamos si ya se llenaron los 6 gabinetes para esa hora.
+        # Verifica si aún hay gabinetes libres para esa hora
         citas_en_hora = Cita.query.filter_by(fecha=fecha_dt, hora=datetime.strptime(hora, '%H:%M:%S').time()).count()
 
-        # Usar Config.GABINETES que ahora está definida
         if citas_en_hora < len(Config.GABINETES): 
             disponibilidad[hora] = 'Disponible'
         else:
@@ -698,11 +649,8 @@ def buscar_paciente():
 @app.route('/api/citas/admin', methods=['GET'])
 @login_required
 def get_citas_admin():
-    """Ruta con autenticación"""
     try:
-        print(f"📊 Citas solicitadas por: {current_user.nombre_usuario}")
         citas = Cita.query.order_by(Cita.fecha, Cita.hora).all()
-        # Asegúrate de que to_dict() se use correctamente aquí
         return jsonify([cita.to_dict() for cita in citas]), 200
     except Exception as e:
         return jsonify({'message': 'Error al cargar citas', 'error': str(e)}), 500
@@ -711,11 +659,8 @@ def get_citas_admin():
 def debug_citas():
     try:
         citas = Cita.query.all()
-        # Asegúrate de que to_dict() se use correctamente aquí
         return jsonify([cita.to_dict() for cita in citas]), 200
     except Exception as e:
-        # Manejar el caso donde no hay citas o no hay BD
-        print(f"Error en debug_citas: {e}")
         return jsonify({'error': str(e)}), 500
 
 # ----------------------------------------------------
@@ -731,37 +676,10 @@ def editar_cita_completa(cita_id):
     data = request.get_json()
     cita = Cita.query.get_or_404(cita_id)
     
-    # Validar Matrícula (Solo se aceptan DÍGITOS)
     matricula = data.get('matricula_editor')
     if matricula and not matricula.isdigit():
         return jsonify({'message': 'Validación de matrícula fallida: Solo se permiten números.'}), 400
     
-    # Registrar información de auditoría
-    if 'matricula_editor' in data:
-        print(f"\n📝 CITA MODIFICADA - ID: {cita_id}")
-        print(f"    👨‍🎓 Editado por: {data['matricula_editor']}")
-        print(f"    🏷️ Tipo modificación: {data.get('tipo_modificacion', 'N/A')}")
-        print(f"    🎯 Motivo: {data.get('motivo_modificacion', 'N/A')}")
-        print(f"    📋 Detalle: {data.get('detalle_motivo', 'N/A')}")
-        print(f"    👤 Paciente: {cita.paciente.nombre} {cita.paciente.apellido}")
-        print(f"    📞 Teléfono: {cita.paciente.telefono}")
-        
-        # Mostrar cambios específicos
-        cambios = []
-        if 'fecha' in data:
-            cambios.append(f"🗓️ Fecha: {data['fecha']} (Anterior: {cita.fecha})")
-        if 'hora' in data:
-            cambios.append(f"⏰ Hora: {data['hora']} (Anterior: {cita.hora})")
-        if 'estado' in data:
-            cambios.append(f"📊 Estado: {data['estado']} (Anterior: {cita.estado})")
-        
-        for cambio in cambios:
-            print(f"    {cambio}")
-        
-        print(f"    📅 Fecha modificación: {data.get('fecha_modificacion', 'N/A')}")
-        print("─" * 60)
-    
-    # Aplicar cambios
     try:
         if 'fecha' in data:
             try:
@@ -780,7 +698,6 @@ def editar_cita_completa(cita_id):
         
         db.session.commit()
         
-        # ✅ CORRECCIÓN: Enviar respuesta más específica y completa
         response_data = {
             'message': 'Cita actualizada correctamente', 
             'cita': cita.to_dict(),
@@ -790,19 +707,16 @@ def editar_cita_completa(cita_id):
                 'motivo': data.get('motivo_modificacion')
             }
         }
-        
-        print(f"✅ EDICIÓN EXITOSA - Cita {cita_id} actualizada")
         return jsonify(response_data), 200
         
     except Exception as e:
         db.session.rollback()
-        print(f"❌ ERROR en edición - Cita {cita_id}: {str(e)}")
-        # ✅ CORRECCIÓN: Enviar mensaje de error más específico
         return jsonify({
             'message': 'Error al actualizar cita en la base de datos', 
             'error': str(e),
             'details': 'Verifique los datos e intente nuevamente'
         }), 500
+
 # ----------------------------------------------------
 # 🌐 Rutas para Servir Archivos HTML
 # ----------------------------------------------------
@@ -837,48 +751,26 @@ def favicon():
 def agendar_terapia_visual_api():
     """Ruta para agendar terapia visual con recurrencia de 3 meses"""
     try:
-        print("📥 SOLICITUD RECIBIDA en /api/citas/agendar_terapia")
-        
-        # Verificar si hay datos JSON
         if not request.is_json:
-            print("❌ No se recibió JSON")
             return jsonify({'message': 'Se esperaba JSON'}), 400
             
         data = request.get_json()
-        print(f"📊 Datos recibidos: {data}")
         
-        # Validar datos requeridos
         required_fields = ['nombre_paciente', 'fecha_inicio', 'hora']
         for field in required_fields:
             if field not in data:
-                print(f"❌ Campo faltante: {field}")
                 return jsonify({'message': f'Campo requerido faltante: {field}'}), 400
 
-        # Parsear fechas
         try:
             fecha_inicio = datetime.strptime(data['fecha_inicio'], '%Y-%m-%d').date()
             hora_dt = datetime.strptime(data['hora'], '%H:%M:%S').time()
-            print(f"✅ Fechas parseadas: {fecha_inicio} {hora_dt}")
         except ValueError as e:
-            print(f"❌ Error parseando fechas: {e}")
             return jsonify({'message': 'Formato de fecha u hora inválido'}), 400
-        
-        # VERIFICACIÓN EXTENDIDA DE LA BASE DE DATOS
-        print("🔍 Verificando estado de la base de datos...")
         
         # Verificar motivo
         motivo_terapia = MotivoCita.query.get(3)
         if not motivo_terapia:
-            print("❌ Motivo de terapia visual NO encontrado")
             return jsonify({'message': 'Motivo de terapia visual no configurado'}), 500
-        print(f"✅ Motivo encontrado: ID {motivo_terapia.id_motivo} - {motivo_terapia.descripcion}")
-        
-        # Verificar gabinetes
-        gabinetes = Gabinete.query.all()
-        print(f"✅ Gabinetes disponibles: {[g.nombre for g in gabinetes]}")
-        
-        # Verificar usuario actual
-        print(f"✅ Usuario autenticado: {current_user.nombre_usuario} (ID: {current_user.id_usuario})")
         
         # Crear paciente
         nombre_completo = data['nombre_paciente']
@@ -886,15 +778,10 @@ def agendar_terapia_visual_api():
         nombre = partes_nombre[0]
         apellido = partes_nombre[1] if len(partes_nombre) > 1 else ""
         
-        print(f"👤 Creando paciente: {nombre} {apellido}")
-        
-        # Manejar el caso de que el teléfono sea None/vacio
         telefono_paciente = data.get('telefono', '000-0000') or '000-0000'
         
-        # Verificar si el paciente ya existe por teléfono para evitar duplicados ÚNICOS
         paciente_existente = Paciente.query.filter_by(telefono=telefono_paciente).first()
         if paciente_existente:
-             # Si ya existe, asumimos que estamos usando ese paciente.
              paciente = paciente_existente
         else:
              paciente = Paciente(
@@ -906,21 +793,14 @@ def agendar_terapia_visual_api():
              db.session.add(paciente)
              db.session.flush()
         
-        print(f"✅ Paciente usado con ID: {paciente.id_paciente}")
+        # Asignar gabinete con la NUEVA función (pasando fecha y hora)
+        id_gabinete = get_next_available_gabinete(fecha_inicio, hora_dt)
+        if not id_gabinete:
+             return jsonify({'message': 'No hay gabinetes disponibles para la fecha y hora inicial'}), 400
         
-        # Asignar gabinete
-        id_gabinete = get_next_available_gabinete(fecha_inicio)
         gabinete = Gabinete.query.get(id_gabinete)
-        print(f"✅ Gabinete asignado: {id_gabinete} ({gabinete.nombre})")
-        
-        # Verificar disponibilidad
-        if not verificar_disponibilidad_fecha(fecha_inicio, hora_dt):
-            print("❌ Fecha y hora no disponibles")
-            return jsonify({'message': 'La fecha y hora inicial no están disponibles'}), 400
-        print("✅ Fecha y hora disponibles")
         
         # Crear cita original
-        print("📝 Creando cita original...")
         cita_original = Cita(
             fecha=fecha_inicio,
             hora=hora_dt,
@@ -932,23 +812,16 @@ def agendar_terapia_visual_api():
         )
         db.session.add(cita_original)
         db.session.flush()
-        print(f"✅ Cita original creada: ID {cita_original.id_cita}")
         
         # PROCESAR RECURRENCIA
         es_recurrente = data.get('es_recurrente', True)
         citas_generadas = []
-        fecha_fin = None  # Inicializar variable
+        fecha_fin = None 
 
         if es_recurrente:
-            print("🔄 Creando serie recurrente por 3 meses...")
-            
-            # Calcular fecha fin (3 meses después)
             fecha_fin = calcular_fecha_fin(fecha_inicio, meses=3)
-            dia_semana = fecha_inicio.weekday()  # 0=Lunes, 6=Domingo
+            dia_semana = fecha_inicio.weekday()
             
-            print(f"📅 Serie recurrente: {fecha_inicio} a {fecha_fin} (día {dia_semana})")
-            
-            # Crear serie recurrente
             serie_recurrente = CitaRecurrente(
                 id_cita_original=cita_original.id_cita,
                 fecha_inicio=fecha_inicio,
@@ -960,9 +833,7 @@ def agendar_terapia_visual_api():
             )
             db.session.add(serie_recurrente)
             db.session.flush()
-            print(f"✅ Serie recurrente creada: ID {serie_recurrente.id_serie}")
 
-            # Registrar la cita original en la serie
             detalle_original = CitaRecurrenteDetalle(
                 id_serie=serie_recurrente.id_serie,
                 id_cita=cita_original.id_cita,
@@ -971,32 +842,24 @@ def agendar_terapia_visual_api():
             )
             db.session.add(detalle_original)
 
-            # Generar citas futuras (excluyendo la original)
             citas_generadas = generar_citas_recurrentes(
                 serie_recurrente.id_serie,
                 paciente.id_paciente,
-                fecha_inicio,  # Empezar desde la fecha original
+                fecha_inicio,
                 fecha_fin,
                 dia_semana,
                 hora_dt,
                 current_user.id_usuario
             )
-            print(f"✅ Citas recurrentes generadas: {len(citas_generadas)} adicionales")
             
-        else:
-            print("✅ Cita individual creada (sin recurrencia)")
-
         db.session.commit()
 
-        # Mensaje final según tipo de cita
         if es_recurrente:
-            total_citas = 1 + len(citas_generadas)  # Original + recurrentes
+            total_citas = 1 + len(citas_generadas)
             mensaje_final = f'Terapia visual recurrente agendada exitosamente. {total_citas} citas creadas hasta el {fecha_fin}.'
         else:
             total_citas = 1
             mensaje_final = 'Cita individual de terapia visual agendada exitosamente.'
-        
-        print(f"🎉 PROCESO COMPLETADO: {mensaje_final}")
         
         return jsonify({
             'message': mensaje_final,
@@ -1020,21 +883,7 @@ def agendar_terapia_visual_api():
     except Exception as e:
         db.session.rollback()
         print(f"💥 ERROR CRÍTICO: {str(e)}")
-        import traceback
-        print(f"📝 Stack trace: {traceback.format_exc()}")
         return jsonify({'message': 'Error al agendar terapia visual', 'error': str(e)}), 500
-
-def encontrar_proximo_dia(fecha, dia_semana):
-    """Encuentra la próxima fecha que coincida con el día de la semana"""
-    dias_restantes = (dia_semana - fecha.weekday()) % 7
-    if dias_restantes == 0:
-        dias_restantes = 7  # Ir a la siguiente semana
-    return fecha + timedelta(days=dias_restantes)
-
-def verificar_disponibilidad_fecha(fecha, hora):
-    """Verifica si una fecha y hora están disponibles"""
-    cita_existente = Cita.query.filter_by(fecha=fecha, hora=hora).first()
-    return cita_existente is None
 
 @app.route('/api/citas/<int:cita_id>/editar_individual', methods=['PUT'])
 @login_required
@@ -1044,50 +893,33 @@ def editar_cita_individual(cita_id):
         data = request.get_json()
         cita = Cita.query.get_or_404(cita_id)
         
-        # Verificar si pertenece a una serie recurrente
         detalle_serie = CitaRecurrenteDetalle.query.filter_by(id_cita=cita_id).first()
         
         if not detalle_serie:
             return jsonify({'message': 'Cita no encontrada en serie recurrente'}), 404
         
-        # Validar matrícula
         matricula = data.get('matricula_editor')
         if matricula and not matricula.isdigit():
             return jsonify({'message': 'La matrícula solo debe contener números'}), 400
         
-        # Registrar auditoría
-        print(f"📝 CITA INDIVIDUAL MODIFICADA - Serie: {detalle_serie.id_serie}")
-        print(f"    👨‍🎓 Editado por: {matricula}")
-        print(f"    📅 Cita original: {cita.fecha} {cita.hora}")
-        
-        # Aplicar cambios
-        cambios = []
         if 'fecha' in data:
             nueva_fecha = datetime.strptime(data['fecha'], '%Y-%m-%d').date()
-            cambios.append(f"🗓️ Fecha: {nueva_fecha} (Anterior: {cita.fecha})")
             cita.fecha = nueva_fecha
         
         if 'hora' in data:
             nueva_hora = datetime.strptime(data['hora'], '%H:%M:%S').time()
-            cambios.append(f"⏰ Hora: {nueva_hora} (Anterior: {cita.hora})")
             cita.hora = nueva_hora
         
         if 'estado' in data:
-            cambios.append(f"📊 Estado: {data['estado']} (Anterior: {cita.estado})")
             cita.estado = data['estado']
         
-        # Actualizar estado individual en la serie
         detalle_serie.estado_individual = 'Modificada'
-        
-        for cambio in cambios:
-            print(f"    {cambio}")
-        
         db.session.commit()
         
         return jsonify({
             'message': 'Cita individual modificada exitosamente',
             'cita': cita.to_dict(),
-            'serie_afectada': False  # Indica que no se afectó la serie completa
+            'serie_afectada': False
         }), 200
         
     except Exception as e:
@@ -1102,12 +934,10 @@ def cancelar_serie_completa(serie_id):
         data = request.get_json()
         serie = CitaRecurrente.query.get_or_404(serie_id)
         
-        # Validar matrícula
         matricula = data.get('matricula_editor')
         if matricula and not matricula.isdigit():
             return jsonify({'message': 'La matrícula solo debe contener números'}), 400
         
-        # Cancelar todas las citas futuras de la serie
         citas_futuras = Cita.query.join(CitaRecurrenteDetalle).filter(
             CitaRecurrenteDetalle.id_serie == serie_id,
             Cita.fecha >= datetime.now().date(),
@@ -1118,12 +948,6 @@ def cancelar_serie_completa(serie_id):
             cita.estado = 'Cancelada'
         
         serie.estado_serie = 'Cancelada'
-        
-        print(f"🚫 SERIE COMPLETA CANCELADA - ID: {serie_id}")
-        print(f"    👨‍🎓 Cancelado por: {matricula}")
-        print(f"    📅 Citas canceladas: {len(citas_futuras)}")
-        print(f"    🎯 Motivo: {data.get('motivo_modificacion', 'N/A')}")
-        
         db.session.commit()
         
         return jsonify({
@@ -1143,42 +967,26 @@ def cancelar_serie_completa(serie_id):
 def get_citas_admin_completo():
     """Obtiene todas las citas incluyendo las recurrentes"""
     try:
-        print(f"📊 Citas completas solicitadas por: {current_user.nombre_usuario}")
-        
-        # Obtener citas principales
         citas_principales = Cita.query.order_by(Cita.fecha, Cita.hora).all()
-        
-        # Obtener citas de series recurrentes
         citas_recurrentes = Cita.query.join(CitaRecurrenteDetalle).filter(
             CitaRecurrenteDetalle.id_cita == Cita.id_cita
         ).order_by(Cita.fecha, Cita.hora).all()
         
-        # Combinar y eliminar duplicados
         todas_citas = citas_principales + citas_recurrentes
         todas_citas = list({cita.id_cita: cita for cita in todas_citas}.values())
         
-        print(f"✅ Citas cargadas: {len(citas_principales)} principales + {len(citas_recurrentes)} recurrentes = {len(todas_citas)} total")
-        
         return jsonify([cita.to_dict() for cita in todas_citas]), 200
         
     except Exception as e:
-        print(f"❌ Error cargando citas completas: {str(e)}")
         return jsonify({'message': 'Error al cargar citas', 'error': str(e)}), 500
 
-# 📅 Ruta alternativa más eficiente
 @app.route('/api/citas/todas', methods=['GET'])
 @login_required  
 def get_todas_citas():
-    """Obtiene todas las citas de manera más eficiente"""
     try:
         todas_citas = Cita.query.order_by(Cita.fecha, Cita.hora).all()
-        
-        print(f"📊 Total de citas cargadas: {len(todas_citas)}")
-        
         return jsonify([cita.to_dict() for cita in todas_citas]), 200
-        
     except Exception as e:
-        print(f"❌ Error cargando todas las citas: {str(e)}")
         return jsonify({'message': 'Error al cargar citas', 'error': str(e)}), 500
 
 
@@ -1198,33 +1006,28 @@ def get_disponibilidad_terapia():
         fecha_dt = datetime.strptime(fecha_str, '%Y-%m-%d').date()
         hora_dt = datetime.strptime(hora_str, '%H:%M:%S').time()
         
-        # Verificar si es fin de semana
         day_of_week = fecha_dt.weekday()
-        if day_of_week >= 5:  # Sábado o Domingo
+        if day_of_week >= 5:
             return jsonify({
                 'disponible': False,
                 'message': 'No hay atención los fines de semana'
             }), 200
         
-        # Verificar disponibilidad (si la hora ya está ocupada en CUALQUIER gabinete)
-        cita_existente = Cita.query.filter_by(fecha=fecha_dt, hora=hora_dt).first()
-        
-        if cita_existente:
-            return jsonify({
-                'disponible': False,
-                'message': f'Horario no disponible. Ya existe una cita a las {hora_str}'
-            }), 200
-        else:
-            return jsonify({
+        # Usar la nueva función lógica de gabinetes
+        if verificar_disponibilidad_fecha(fecha_dt, hora_dt):
+             return jsonify({
                 'disponible': True,
                 'message': 'Horario disponible'
             }), 200
+        else:
+            return jsonify({
+                'disponible': False,
+                'message': f'Horario no disponible. Todos los gabinetes llenos a las {hora_str}'
+            }), 200
             
     except Exception as e:
-        print(f"❌ Error verificando disponibilidad terapia: {str(e)}")
         return jsonify({'message': 'Error al verificar disponibilidad', 'error': str(e)}), 500
 
-# 📅 Ruta para obtener horarios disponibles para terapia visual
 @app.route('/api/terapia/horarios_disponibles', methods=['POST'])
 @login_required
 def get_horarios_disponibles_terapia():
@@ -1238,7 +1041,6 @@ def get_horarios_disponibles_terapia():
         
         fecha_dt = datetime.strptime(fecha_str, '%Y-%m-%d').date()
         
-        # Verificar si es fin de semana
         day_of_week = fecha_dt.weekday()
         if day_of_week >= 5:
             return jsonify({
@@ -1247,19 +1049,15 @@ def get_horarios_disponibles_terapia():
             }), 200
         
         # Obtener citas existentes para esa fecha
-        citas_del_dia = Cita.query.filter_by(fecha=fecha_dt).all()
-        horas_ocupadas = {str(cita.hora) for cita in citas_del_dia}
-        
-        # ⭐ USA HORARIOS RESTRINGIDOS ⭐
         horarios_terapia = Config.HORARIOS_ATENCION
-        
-        # Filtrar horarios disponibles
-        horarios_disponibles = [
-            hora for hora in horarios_terapia 
-            if hora not in horas_ocupadas
-        ]
-        
-        print(f"📅 Horarios disponibles para terapia {fecha_str}: {horarios_disponibles}")
+        horarios_disponibles = []
+
+        for hora_str in horarios_terapia:
+            # Convertir string a time object para la consulta
+            hora_obj = datetime.strptime(hora_str, '%H:%M:%S').time()
+            # Verificar si hay espacio usando la misma lógica
+            if verificar_disponibilidad_fecha(fecha_dt, hora_obj):
+                horarios_disponibles.append(hora_str)
         
         return jsonify({
             'horarios_disponibles': horarios_disponibles,
@@ -1268,10 +1066,7 @@ def get_horarios_disponibles_terapia():
         }), 200
         
     except Exception as e:
-        print(f"❌ Error obteniendo horarios terapia: {str(e)}")
         return jsonify({'message': 'Error al obtener horarios', 'error': str(e)}), 500
-
-
 
 
 from datetime import date
@@ -1284,9 +1079,6 @@ def get_reporte_semanal():
         hoy = date.today()
         fecha_inicio = hoy - timedelta(days=6)
         
-        print(f"📊 Generando reporte semanal: {fecha_inicio} a {hoy}")
-        
-        # Consulta: Citas cuya fecha esté dentro del rango
         citas_semanales = Cita.query.filter(Cita.fecha.between(fecha_inicio, hoy)).all()
         
         reporte_data = []
@@ -1302,8 +1094,6 @@ def get_reporte_semanal():
                 
             reporte_data.append(cita_dict)
 
-        print(f"✅ Reporte generado: {len(reporte_data)} citas encontradas.")
-        
         return jsonify({
             'citas': reporte_data,
             'fecha_inicio': fecha_inicio.strftime('%Y-%m-%d'),
@@ -1312,8 +1102,8 @@ def get_reporte_semanal():
         }), 200
         
     except Exception as e:
-        print(f"❌ Error al generar reporte: {str(e)}")
         return jsonify({'message': 'Error interno al generar el reporte semanal', 'error': str(e)}), 500
+
 # ----------------------------------------------------
 # 🚀 Ejecución de la Aplicación
 # ----------------------------------------------------
@@ -1321,8 +1111,4 @@ def get_reporte_semanal():
 if __name__ == '__main__':
     inicializar_db() 
     print("🚀 Servidor Flask iniciado en http://127.0.0.1:5000")
-    print("🔐 CONFIGURACIÓN DE COOKIES MEJORADA")
-    print("🍪 SESSION_COOKIE_NAME:", app.config['SESSION_COOKIE_NAME'])
-    print("🌐 Orígenes permitidos: http://localhost:5000, http://127.0.0.1:5000")
-    # Nota: use_reloader=False evita que se ejecute la inicialización dos veces en debug
     app.run(debug=True, host='127.0.0.1', port=5000, use_reloader=False)

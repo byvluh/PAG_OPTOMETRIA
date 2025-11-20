@@ -1286,3 +1286,28 @@ h1 {
 #calendar-toggle:hover {
     background: var(--secondary);
 }
+/* ESTILOS PARA EL BOTÓN DE CERRAR SESIÓN */
+        .admin-navigation {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        /* Empuja el botón a la derecha y lo pone rojo */
+        .logout-btn {
+            margin-left: auto !important; 
+            background-color: #dc3545 !important; /* Rojo */
+            color: white !important;
+            border: 1px solid #dc3545 !important;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .logout-btn:hover {
+            background-color: #c82333 !important;
+            transform: translateY(-2px);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
