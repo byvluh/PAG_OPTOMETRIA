@@ -179,8 +179,8 @@ async function initializeAdminPanel() {
         
         await loadCitas();
         initializeEventListeners();
+        initializeMiniCalendar(); 
         
-        // ⭐ INICIALIZAR CON DASHBOARD PRINCIPAL VISIBLE
         showSection('dashboard');
         
         const today = new Date();
@@ -190,7 +190,6 @@ async function initializeAdminPanel() {
         
         // Pequeño delay para asegurar que el calendario se renderice
         setTimeout(() => {
-            // ⭐ LLAMADA CRÍTICA: Renderiza la cuadrícula y actualiza el encabezado
             updateCalendar(); 
             
             const todayElement = document.querySelector(`.calendar-date[data-date="${todayString}"]`);
@@ -277,18 +276,12 @@ async function checkAuth() {
 
 
 function initializeEventListeners() {
-    // Navegación del calendario
     const prevMonthBtn = document.getElementById('prev-month');
     const nextMonthBtn = document.getElementById('next-month');
     
-    if (prevMonthBtn) {
-        prevMonthBtn.addEventListener('click', previousMonth);
-    }
-    if (nextMonthBtn) {
-        nextMonthBtn.addEventListener('click', nextMonth);
-    }
-    
-    // Cerrar modal de detalles de cita
+    if (prevMonthBtn) prevMonthBtn.addEventListener('click', previousMonth);
+    if (nextMonthBtn) nextMonthBtn.addEventListener('click', nextMonth);
+
     const closeModalBtn = document.querySelector('#appointment-modal .close');
     if (closeModalBtn) {
         closeModalBtn.addEventListener('click', closeModal);
@@ -299,8 +292,7 @@ function initializeEventListeners() {
             closeModal();
         }
     });
-    
-    // Botones del modal de detalles (editar, imprimir, cancelar)
+
     const modalActions = document.querySelector('.modal-actions');
     if (modalActions) {
         const editBtn = modalActions.querySelector('.btn-primary');
@@ -311,8 +303,7 @@ function initializeEventListeners() {
         if (printBtn) printBtn.addEventListener('click', printAppointment);
         if (cancelBtn) cancelBtn.addEventListener('click', cancelAppointment);
     }
-    
-    // ⭐ EVENT LISTENERS PARA REPORTES CORREGIDOS ⭐
+
     const exportExcelBtn = document.getElementById('exportExcelBtn');
     const exportCSVBtn = document.getElementById('exportCSVBtn');
     const refreshReportBtn = document.getElementById('refreshReportBtn');
@@ -323,20 +314,19 @@ function initializeEventListeners() {
             exportTableToExcel('reporteTable', `reporte_semanal_${fecha}.xlsx`);
         });
     }
-    
+
     if (exportCSVBtn) {
         exportCSVBtn.addEventListener('click', () => {
             const fecha = new Date().toISOString().split('T')[0];
             exportTableToCSV('reporteTable', `reporte_semanal_${fecha}.csv`);
         });
     }
-    
+
     if (refreshReportBtn) {
         refreshReportBtn.addEventListener('click', loadReporteSemanal);
     }
-    
-    // Inicializar eventos de fechas del calendario
-    // Nota: El binding de eventos se hace dentro de renderCalendarGrid
+
+    // ❌ REMOVIDO: initializeMiniCalendar();  (evita ejecución prematura)
 }
 
 
@@ -1093,7 +1083,7 @@ function showEditModal(cita) {
                                 <option value="Disponibilidad de gabinete">Disponibilidad de gabinete</option>
                                 <option value="Conflicto de horario">Conflicto de horario</option>
                                 <option value="Emergencia">Emergencia</option>
-                                <option value="Error en agendamiento">Error en agendamiento</option>
+                                <option value="Error en agendamiento">Error de agenda</option>
                                 <option value="Otro">Otro motivo</option>
                             </select>
                         </div>
@@ -1380,6 +1370,302 @@ function cancelAppointment() {
     }
 }
 
+
+// Función para generar la cuadrícula del calendario dinámicamente
+function renderCalendarGrid() {
+    const grid = document.querySelector('.calendar-grid');
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+
+    // 1. Limpiar la cuadrícula, dejando solo los encabezados
+    grid.innerHTML = `
+        <div class="calendar-day">Dom</div>
+        <div class="calendar-day">Lun</div>
+        <div class="calendar-day">Mar</div>
+        <div class="calendar-day">Mié</div>
+        <div class="calendar-day">Jue</div>
+        <div class="calendar-day">Vie</div>
+        <div class="calendar-day">Sáb</div>
+    `;
+
+    // 2. Calcular fechas clave
+    const firstDayIndex = new Date(year, month, 1).getDay(); // Día semana del 1 (0=Dom, 1=Lun...)
+    const lastDay = new Date(year, month + 1, 0).getDate();  // Último día del mes actual
+    const prevLastDay = new Date(year, month, 0).getDate();  // Último día del mes anterior
+
+    // 3. Días del mes anterior (Relleno inicial)
+    for (let x = firstDayIndex; x > 0; x--) {
+        const dayDiv = document.createElement('div');
+        dayDiv.classList.add('calendar-date', 'other-month');
+        
+        // ⭐ NO APLICA GUION A DÍAS DE OTRO MES, SOLO AL ACTUAL ⭐
+        dayDiv.textContent = prevLastDay - x + 1;
+        grid.appendChild(dayDiv);
+    }
+
+    // 4. Días del mes actual
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    for (let i = 1; i <= lastDay; i++) {
+        const dayDiv = document.createElement('div');
+        dayDiv.classList.add('calendar-date');
+        
+        const dayDate = new Date(year, month, i);
+        const dayOfWeek = dayDate.getDay(); // 0 (Dom) a 6 (Sáb)
+        const dateString = dayDate.toISOString().split('T')[0];
+        
+        // Añadir data attributes
+        dayDiv.setAttribute('data-day', i);
+        dayDiv.setAttribute('data-date', dateString);
+        
+        // ⭐ CÓDIGO DE CORRECCIÓN: Mostrar guion en Sábados (6) y Domingos (0) ⭐
+        if (dayOfWeek === 0 || dayOfWeek === 6) { 
+            dayDiv.textContent = '-';
+            dayDiv.classList.add('weekend'); // Agregamos una clase para CSS
+            dayDiv.style.cursor = 'not-allowed';
+        } else {
+            dayDiv.textContent = i;
+        }
+        // ⭐ FIN CÓDIGO DE CORRECCIÓN ⭐
+        
+        
+        // Si es hoy, marcarlo
+        if (dayDate.setHours(0, 0, 0, 0) === today.getTime()) {
+            dayDiv.classList.add('today'); 
+        }
+
+        grid.appendChild(dayDiv);
+    }
+
+    // 5. Días del mes siguiente (Relleno final para completar cuadrícula)
+    const totalCellsSoFar = firstDayIndex + lastDay;
+    const cellsToFill = 42 - totalCellsSoFar; 
+
+    for (let j = 1; j <= cellsToFill; j++) {
+        const dayDiv = document.createElement('div');
+        dayDiv.classList.add('calendar-date', 'other-month');
+        dayDiv.textContent = j;
+        grid.appendChild(dayDiv);
+    }
+
+    // 6. Re-inicializar los eventos de click porque son elementos nuevos
+    initializeCalendarEvents();
+}
+
+// ==================== FUNCIONALIDAD DEL MINI CALENDARIO ====================
+
+// Inicializar eventos del mini calendario
+// ==================== MINI CALENDARIO SIMPLIFICADO ====================
+
+let miniCalendarCurrentDate = new Date();
+
+function initializeMiniCalendar() {
+    console.log('🔧 Inicializando mini calendario...');
+    
+    const calendarToggle = document.getElementById('calendar-toggle');
+    const miniCalendar = document.getElementById('mini-calendar');
+    
+    if (!calendarToggle || !miniCalendar) {
+        console.error('❌ No se encontraron elementos del mini calendario');
+        return;
+    }
+    
+    // Mostrar/ocultar mini calendario
+    calendarToggle.addEventListener('click', function(e) {
+        e.stopPropagation();
+        console.log('📅 Abriendo mini calendario...');
+        
+        // Resetear a fecha actual
+        miniCalendarCurrentDate = new Date();
+        
+        if (miniCalendar.style.display === 'block') {
+            miniCalendar.style.display = 'none';
+        } else {
+            miniCalendar.style.display = 'block';
+            renderMiniCalendar();
+        }
+    });
+    
+    // Cerrar con X
+    const closeBtn = miniCalendar.querySelector('.close-mini-calendar');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', function() {
+            miniCalendar.style.display = 'none';
+        });
+    }
+    
+    // Navegación
+    const prevBtn = miniCalendar.querySelector('.mini-calendar-prev');
+    const nextBtn = miniCalendar.querySelector('.mini-calendar-next');
+    
+    if (prevBtn) {
+        prevBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            miniCalendarCurrentDate.setMonth(miniCalendarCurrentDate.getMonth() - 1);
+            renderMiniCalendar();
+        });
+    }
+    
+    if (nextBtn) {
+        nextBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            miniCalendarCurrentDate.setMonth(miniCalendarCurrentDate.getMonth() + 1);
+            renderMiniCalendar();
+        });
+    }
+    
+    // Cerrar al hacer clic fuera
+    document.addEventListener('click', function(e) {
+        if (!miniCalendar.contains(e.target) && e.target !== calendarToggle) {
+            miniCalendar.style.display = 'none';
+        }
+    });
+    
+    console.log('✅ Mini calendario inicializado');
+}
+
+function renderMiniCalendar() {
+    const grid = document.querySelector('.mini-calendar-grid');
+    const title = document.getElementById('mini-calendar-title');
+    
+    if (!grid || !title) {
+        console.error('❌ No se encontró el grid o título del mini calendario');
+        return;
+    }
+    
+    const year = miniCalendarCurrentDate.getFullYear();
+    const month = miniCalendarCurrentDate.getMonth();
+    
+    // Actualizar título
+    const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                       'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    title.textContent = `${monthNames[month]} ${year}`;
+    
+    // Limpiar grid
+    grid.innerHTML = '';
+    
+    // Días de la semana
+    const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    dayNames.forEach(day => {
+        const dayDiv = document.createElement('div');
+        dayDiv.className = 'mini-calendar-day';
+        dayDiv.textContent = day;
+        grid.appendChild(dayDiv);
+    });
+    
+    // Calcular días
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDay = firstDay.getDay();
+    
+    // Días del mes anterior
+    const prevMonthLastDay = new Date(year, month, 0).getDate();
+    for (let i = 0; i < startingDay; i++) {
+        const dayDiv = document.createElement('div');
+        dayDiv.className = 'mini-calendar-date other-month';
+        dayDiv.textContent = prevMonthLastDay - startingDay + i + 1;
+        grid.appendChild(dayDiv);
+    }
+    
+    // Días del mes actual
+    const today = new Date();
+    const todayString = today.toISOString().split('T')[0];
+    
+    for (let day = 1; day <= daysInMonth; day++) {
+        const dayDiv = document.createElement('div');
+        dayDiv.className = 'mini-calendar-date';
+        
+        const date = new Date(year, month, day);
+        const dateString = date.toISOString().split('T')[0];
+        const dayOfWeek = date.getDay();
+        
+        dayDiv.setAttribute('data-date', dateString);
+        dayDiv.textContent = day;
+        
+        // Fin de semana
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+            dayDiv.classList.add('weekend');
+            dayDiv.textContent = '-';
+            dayDiv.style.cursor = 'not-allowed';
+        }
+        
+        // Días con citas
+        const hasAppointments = allCitas.some(cita => cita.fecha === dateString);
+        if (hasAppointments && dayOfWeek !== 0 && dayOfWeek !== 6) {
+            dayDiv.classList.add('has-appointments');
+        }
+        
+        // Día seleccionado
+        if (selectedCalendarDate && selectedCalendarDate.toISOString().split('T')[0] === dateString) {
+            dayDiv.classList.add('selected');
+        }
+        
+        // Hoy
+        if (dateString === todayString) {
+            dayDiv.classList.add('today');
+        }
+        
+        // Evento click para días laborables
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+            dayDiv.style.cursor = 'pointer';
+            dayDiv.addEventListener('click', function() {
+                selectDateFromMiniCalendar(date);
+            });
+        }
+        
+        grid.appendChild(dayDiv);
+    }
+    
+    // Completar grid
+    const totalCells = 42;
+    const cellsSoFar = startingDay + daysInMonth;
+    for (let day = 1; day <= (totalCells - cellsSoFar); day++) {
+        const dayDiv = document.createElement('div');
+        dayDiv.className = 'mini-calendar-date other-month';
+        dayDiv.textContent = day;
+        grid.appendChild(dayDiv);
+    }
+    
+    console.log('✅ Mini calendario renderizado');
+}
+
+function selectDateFromMiniCalendar(date) {
+    console.log('📅 Fecha seleccionada desde mini calendario:', date);
+    
+    selectedCalendarDate = date;
+    
+    // Actualizar todo
+    updateSelectedDate(date);
+    updateScheduleForDate(date);
+    updatePatientCardsForDate(date);
+    
+    // Ocultar mini calendario
+    document.getElementById('mini-calendar').style.display = 'none';
+    
+    // Actualizar calendario principal si es necesario
+    const currentMonth = currentDate.getMonth();
+    const selectedMonth = date.getMonth();
+    const currentYear = currentDate.getFullYear();
+    const selectedYear = date.getFullYear();
+    
+    if (currentMonth !== selectedMonth || currentYear !== selectedYear) {
+        currentDate = new Date(selectedYear, selectedMonth, 1);
+        updateCalendar();
+    }
+    
+    // Resaltar en calendario principal
+    const dateString = date.toISOString().split('T')[0];
+    const calendarDate = document.querySelector(`.calendar-date[data-date="${dateString}"]`);
+    if (calendarDate) {
+        document.querySelectorAll('.calendar-date').forEach(d => d.classList.remove('selected'));
+        calendarDate.classList.add('selected');
+    }
+    
+    console.log('✅ Fecha actualizada');
+}
+
 // ==================== ESTADÍSTICAS CON DATOS REALES ====================
 
 function updateStats() {
@@ -1598,84 +1884,4 @@ function exportTableToCSV(tableId, filename = 'reporte_semanal.csv') {
         alert(`✅ Reporte "${filename}" exportado con éxito.`);
     }
 }
-// Función para generar la cuadrícula del calendario dinámicamente
-function renderCalendarGrid() {
-    const grid = document.querySelector('.calendar-grid');
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
 
-    // 1. Limpiar la cuadrícula, dejando solo los encabezados
-    grid.innerHTML = `
-        <div class="calendar-day">Dom</div>
-        <div class="calendar-day">Lun</div>
-        <div class="calendar-day">Mar</div>
-        <div class="calendar-day">Mié</div>
-        <div class="calendar-day">Jue</div>
-        <div class="calendar-day">Vie</div>
-        <div class="calendar-day">Sáb</div>
-    `;
-
-    // 2. Calcular fechas clave
-    const firstDayIndex = new Date(year, month, 1).getDay(); // Día semana del 1 (0=Dom, 1=Lun...)
-    const lastDay = new Date(year, month + 1, 0).getDate();  // Último día del mes actual
-    const prevLastDay = new Date(year, month, 0).getDate();  // Último día del mes anterior
-
-    // 3. Días del mes anterior (Relleno inicial)
-    for (let x = firstDayIndex; x > 0; x--) {
-        const dayDiv = document.createElement('div');
-        dayDiv.classList.add('calendar-date', 'other-month');
-        
-        // ⭐ NO APLICA GUION A DÍAS DE OTRO MES, SOLO AL ACTUAL ⭐
-        dayDiv.textContent = prevLastDay - x + 1;
-        grid.appendChild(dayDiv);
-    }
-
-    // 4. Días del mes actual
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    for (let i = 1; i <= lastDay; i++) {
-        const dayDiv = document.createElement('div');
-        dayDiv.classList.add('calendar-date');
-        
-        const dayDate = new Date(year, month, i);
-        const dayOfWeek = dayDate.getDay(); // 0 (Dom) a 6 (Sáb)
-        const dateString = dayDate.toISOString().split('T')[0];
-        
-        // Añadir data attributes
-        dayDiv.setAttribute('data-day', i);
-        dayDiv.setAttribute('data-date', dateString);
-        
-        // ⭐ CÓDIGO DE CORRECCIÓN: Mostrar guion en Sábados (6) y Domingos (0) ⭐
-        if (dayOfWeek === 0 || dayOfWeek === 6) { 
-            dayDiv.textContent = '-';
-            dayDiv.classList.add('weekend'); // Agregamos una clase para CSS
-            dayDiv.style.cursor = 'not-allowed';
-        } else {
-            dayDiv.textContent = i;
-        }
-        // ⭐ FIN CÓDIGO DE CORRECCIÓN ⭐
-        
-        
-        // Si es hoy, marcarlo
-        if (dayDate.setHours(0, 0, 0, 0) === today.getTime()) {
-            dayDiv.classList.add('today'); 
-        }
-
-        grid.appendChild(dayDiv);
-    }
-
-    // 5. Días del mes siguiente (Relleno final para completar cuadrícula)
-    const totalCellsSoFar = firstDayIndex + lastDay;
-    const cellsToFill = 42 - totalCellsSoFar; 
-
-    for (let j = 1; j <= cellsToFill; j++) {
-        const dayDiv = document.createElement('div');
-        dayDiv.classList.add('calendar-date', 'other-month');
-        dayDiv.textContent = j;
-        grid.appendChild(dayDiv);
-    }
-
-    // 6. Re-inicializar los eventos de click porque son elementos nuevos
-    initializeCalendarEvents();
-}

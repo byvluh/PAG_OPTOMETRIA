@@ -286,63 +286,80 @@
         </div>
 
         <div class="card schedule-container">
-          <div class="schedule-header">
-            <h2>
-              <i class="fas fa-clock"></i> Horario del día - viernes, 20 de
-              diciembre de 2024
-            </h2>
-            <p>Citas organizadas por hora y gabinete</p>
-          </div>
+    <div class="schedule-header">
+        <h2>
+            <i class="fas fa-clock"></i> Horario del día - viernes, 20 de diciembre de 2024
+        </h2>
+        <div class="schedule-actions">
+            <button id="calendar-toggle" class="btn btn-secondary">
+                <i class="fas fa-calendar-alt"></i> Cambiar fecha
+            </button>
+        </div>
+    </div>
 
-          <h3><i class="fas fa-clipboard-list"></i> Programación de Gabinetes</h3>
+    <!-- Mini calendario DENTRO del card pero después del header -->
+    <div id="mini-calendar" class="mini-calendar" style="display: none;">
+        <div class="mini-calendar-header">
+            <div class="mini-calendar-nav">
+                <button class="mini-calendar-prev"><i class="fas fa-chevron-left"></i></button>
+                <h4 id="mini-calendar-title">Seleccionar fecha</h4>
+                <button class="mini-calendar-next"><i class="fas fa-chevron-right"></i></button>
+            </div>
+            <button class="close-mini-calendar">&times;</button>
+        </div>
+        <div class="mini-calendar-grid"></div>
+    </div>
 
-          <table class="schedule-table">
-            <thead>
-              <tr>
+    <p>Citas organizadas por hora y gabinete</p>
+    <h3><i class="fas fa-clipboard-list"></i> Programación de Gabinetes</h3>
+
+    <table class="schedule-table">
+        <thead>
+            <tr>
                 <th>Hora</th>
                 <th>Gabinete 1</th>
                 <th>Gabinete 2</th>
                 <th>Gabinete 3</th>
                 <th>Gabinete 4</th>
                 <th>Gabinete 5</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
                 <td class="time-slot">☐ 12:30</td>
                 <td>Disponible</td>
                 <td>Disponible</td>
                 <td>Disponible</td>
                 <td>Disponible</td>
                 <td>Disponible</td>
-              </tr>
-              <tr>
+            </tr>
+            <tr>
                 <td class="time-slot">☐ 13:30</td>
                 <td>Disponible</td>
                 <td>Disponible</td>
                 <td>Disponible</td>
                 <td>Disponible</td>
                 <td>Disponible</td>
-              </tr>
-              <tr>
+            </tr>
+            <tr>
                 <td class="time-slot">☐ 14:30</td>
                 <td>Disponible</td>
                 <td>Disponible</td>
                 <td>Disponible</td>
                 <td>Disponible</td>
                 <td>Disponible</td>
-              </tr>
-              <tr>
+            </tr>
+            <tr>
                 <td class="time-slot">☐ 15:30</td>
                 <td>Disponible</td>
                 <td>Disponible</td>
                 <td>Disponible</td>
                 <td>Disponible</td>
                 <td>Disponible</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+            </tr>
+        </tbody>
+    </table>
+</div>
 
         <div class="card patient-details">
           <h2><i class="fas fa-users"></i> Detalles de Pacientes</h2>
@@ -352,6 +369,19 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Mini calendario FUERA del card -->
+    <div id="mini-calendar" class="mini-calendar" style="display: none;">
+        <div class="mini-calendar-header">
+            <div class="mini-calendar-nav">
+                <button class="mini-calendar-prev"><i class="fas fa-chevron-left"></i></button>
+                <h4 id="mini-calendar-title">Seleccionar fecha</h4>
+                <button class="mini-calendar-next"><i class="fas fa-chevron-right"></i></button>
+            </div>
+            <button class="close-mini-calendar">&times;</button>
+        </div>
+        <div class="mini-calendar-grid"></div>
     </div>
 
     <script src="funAdmin.js"></script>
